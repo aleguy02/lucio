@@ -62,7 +62,6 @@ var (
         Align(lipgloss.Center)
 	selectedSpinnerStyle = lipgloss.NewStyle().
 		Padding(0, 1).
-		// Bold(true).
 		Foreground(lipgloss.Color("#1DB954"))
 	itemStyle = lipgloss.NewStyle().Padding(0, 1)
 )
@@ -82,6 +81,7 @@ type menu struct {
 func NewMenu() menu {
 	ti := textinput.New()
 	ti.Placeholder = "Press t for terminal mode"
+	ti.SetWidth(100)
 	fig := figure.NewFigure("NAME", "rectangles", true)
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
