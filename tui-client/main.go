@@ -1,8 +1,9 @@
 package main
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"log"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // TODO create tui
@@ -22,7 +23,7 @@ func main() {
 
 const (
 	MenuViewIdx int = iota
-	HelpViewIdx
+	GuideViewIdx
 )
 
 type switchViewMsg int
@@ -42,7 +43,7 @@ func NewModel() *Model {
 		active: MenuViewIdx,
 		views: []tea.Model{
 			NewMenu(),
-			NewHelp(),
+			NewGuide(),
 		},
 	}
 }
@@ -55,6 +56,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.views[m.active], cmd = m.views[m.active].Update(msg)
 
+	// TODO: refactor to propagate messages to proper screen with Update method. Look at help.go 39 too
 	switch msg := msg.(type) {
 	case switchViewMsg:
 		m.active = int(msg)
@@ -64,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "h":
-			m.active = HelpViewIdx
+			m.active = GuideViewIdx
 		case "t":
 			// focus command prompt
 		}
