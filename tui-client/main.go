@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -15,6 +17,14 @@ import (
 // command ideas: pause, play, skipf, skipb
 
 func main() {
+	if len(os.Getenv("DEBUG")) > 0 {
+		f, err := tea.LogToFile("debug.log", "debug")
+		if err != nil {
+			fmt.Println("fatal:", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+	}
 	p := tea.NewProgram(NewModel())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
@@ -49,7 +59,7 @@ func NewModel() *Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.views[m.active].Init()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -60,15 +70,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case switchViewMsg:
 		m.active = int(msg)
-		return m, nil
+		return m, m.views[m.active].Init()
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "h":
-			m.active = GuideViewIdx
-		case "t":
-			// focus command prompt
 		}
 	}
 	return m, cmd

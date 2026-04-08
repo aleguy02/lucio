@@ -3,9 +3,11 @@ package main
 import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/common-nighthawk/go-figure"
 )
 
 type menuState int
@@ -49,7 +51,25 @@ func (k terminalModeKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{k.Submit, k.Exit}}
 }
 
+// styles
+var (
+    bannerStyle = lipgloss.NewStyle().
+        Bold(true).
+        Foreground(lipgloss.Color("#000000ff")).
+        Background(lipgloss.Color("#1DB954")).
+        Padding(1, 2).
+        MarginBottom(1).
+        Align(lipgloss.Center)
+	selectedSpinnerStyle = lipgloss.NewStyle().
+		Padding(0, 1).
+		// Bold(true).
+		Foreground(lipgloss.Color("#1DB954"))
+	itemStyle = lipgloss.NewStyle().Padding(0, 1)
+)
+
 type menu struct {
+	banner	string
+	spinner spinner.Model
 	items     []string
 	selected  int
 	textInput textinput.Model
@@ -61,9 +81,15 @@ type menu struct {
 
 func NewMenu() menu {
 	ti := textinput.New()
-	ti.Placeholder = "Foo bar music"
+	ti.Placeholder = "Press t for terminal mode"
+	fig := figure.NewFigure("NAME", "rectangles", true)
+	s := spinner.New()
+	s.Spinner = spinner.MiniDot
+	s.Style = selectedSpinnerStyle
 
 	return menu{
+		banner: bannerStyle.Render(fig.String()),
+		spinner: s,
 		items:     []string{"H", "V", "A"},
 		selected:  0,
 		textInput: ti,
@@ -101,11 +127,16 @@ func NewMenu() menu {
 }
 
 func (m menu) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+
+	if msg, ok := msg.(spinner.TickMsg); ok {
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
 
 	switch m.state {
 	case menuMode:
@@ -122,6 +153,8 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.menuKeys.Terminal):
 				m.state = terminalMode
 				m.textInput.Focus()
+			case key.Matches(msg, m.menuKeys.Help):
+				return m, SwitchViewCmd(GuideViewIdx)
 			}
 		}
 
@@ -143,13 +176,10 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m menu) View() tea.View {
-	itemStyle := lipgloss.NewStyle().Padding(0, 1)
-	selectedStyle := lipgloss.NewStyle().Padding(0, 1).Bold(true).Foreground(lipgloss.Color("2"))
-
 	renderedItems := make([]string, len(m.items))
 	for i, item := range m.items {
 		if i == m.selected {
-			renderedItems[i] = selectedStyle.Render(item)
+			renderedItems[i] = m.spinner.View()
 		} else {
 			renderedItems[i] = itemStyle.Render(item)
 		}
@@ -166,7 +196,7 @@ func (m menu) View() tea.View {
 	}
 
 	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
-		"NAME",
+		m.banner,
 		horizontalList,
 		m.textInput.View(),
 		helpBar,
