@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -38,9 +39,10 @@ const (
 
 type Model struct {
 	// menu, vibe, help, stats
-	active        int
-	views         []tea.Model
-	spotifyClient *SpotifyClient
+	active         int
+	views          []tea.Model
+	spotifyClient  *SpotifyClient
+	gestureCancel  context.CancelFunc // nil when gesture server is not running
 }
 
 func NewModel() *Model {
@@ -72,9 +74,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg { return errMsg }
 		}
 		return m, nil
+	case ToggleGesturesMsg:
+		if bool(msg) {
+			log.Println("enabling gesture server")
+			ctx, cancel := context.WithCancel(context.Background())
+			m.gestureCancel = cancel
+			if err := startGestureServer(ctx); err != nil {
+				log.Println("gesture server failed to start:", err)
+				m.gestureCancel = nil
+			}
+		} else {
+			log.Println("disabling gesture server")
+			if m.gestureCancel != nil {
+				m.gestureCancel()
+				m.gestureCancel = nil
+			}
+		}
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			if m.gestureCancel != nil {
+				m.gestureCancel()
+			}
 			return m, tea.Quit
 		}
 	}

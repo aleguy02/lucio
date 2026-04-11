@@ -110,7 +110,11 @@ func (m ModalitiesModel) Update(msg tea.Msg) (ModalitiesModel, tea.Cmd) {
 			}
 		case key.Matches(msg, m.Keys.Toggle):
 			m.Modalities[m.Cursor].Enabled = !m.Modalities[m.Cursor].Enabled
-			// TODO: Optionally return a command here to notify parent models of state changes
+
+			switch m.Modalities[m.Cursor].ID {
+			case "gestures":
+				return m, ToggleGesturesCmd(m.Modalities[m.Cursor].Enabled)
+			}
 		}
 	}
 	return m, nil
