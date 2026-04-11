@@ -65,3 +65,7 @@ type ToggleGesturesMsg bool
 func ToggleGesturesCmd(toggle bool) tea.Cmd {
 	return func() tea.Msg { return ToggleGesturesMsg(toggle) }
 }
+
+func WaitForGestureCmd(ch chan tea.Msg) tea.Cmd {
+	return func() tea.Msg { return <-ch }
+}

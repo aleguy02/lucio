@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -94,36 +95,36 @@ func parseSeconds(arg string) (int, error) {
 // --- stub handlers (Spotify Web API calls go here) ---
 
 func (c *SpotifyClient) play() error {
-	fmt.Println("[spotify] PLAY")
+	log.Println("[spotify] PLAY")
 	return nil
 }
 
 func (c *SpotifyClient) pause() error {
-	fmt.Println("[spotify] PAUSE")
+	log.Println("[spotify] PAUSE")
 	return nil
 }
 
 func (c *SpotifyClient) skipForward() error {
-	fmt.Println("[spotify] SKIPF")
+	log.Println("[spotify] SKIPF")
 	return nil
 }
 
 func (c *SpotifyClient) skipBack() error {
-	fmt.Println("[spotify] SKIPB")
+	log.Println("[spotify] SKIPB")
 	return nil
 }
 
 func (c *SpotifyClient) seekForward(s int) error {
-	fmt.Printf("[spotify] SEEKF %ds\n", s)
+	log.Printf("[spotify] SEEKF %ds\n", s)
 	return nil
 }
 
 func (c *SpotifyClient) seekBack(s int) error {
-	fmt.Printf("[spotify] SEEKB %ds\n", s)
+	log.Printf("[spotify] SEEKB %ds\n", s)
 	return nil
 }
 
 func (c *SpotifyClient) search(term string) error {
-	fmt.Printf("[spotify] SEARCH %q\n", term)
+	log.Printf("[spotify] SEARCH %q\n", term)
 	return nil
 }

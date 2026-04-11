@@ -9,13 +9,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// TODO create tui
+// TODO
 // multiple views
-// - form/main menu to enable multimodes
 // minimalist "vibe" view
 // active session (see how long they've been listening to music, avg session length, and sum total session time)
-
-// command ideas: pause, play, skipf, skipb
 
 func main() {
 	if len(os.Getenv("DEBUG")) > 0 {
@@ -43,6 +40,7 @@ type Model struct {
 	views          []tea.Model
 	spotifyClient  *SpotifyClient
 	gestureCancel  context.CancelFunc // nil when gesture server is not running
+	gestureChan		chan tea.Msg
 }
 
 func NewModel() *Model {
@@ -67,24 +65,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case SwitchViewMsg:
 		m.active = int(msg)
-		return m, m.views[m.active].Init()
+		return m, tea.Batch(m.views[m.active].Init(), WaitForGestureCmd(m.gestureChan))
 	case SpotifyActionMsg:
 		if err := m.spotifyClient.Route(msg); err != nil {
 			errMsg := SpotifyRouteErrorMsg(err.Error())
-			return m, func() tea.Msg { return errMsg }
+			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
 		}
-		return m, nil
+		
+		return m, WaitForGestureCmd(m.gestureChan)
 	case ToggleGesturesMsg:
 		if bool(msg) {
-			log.Println("enabling gesture server")
+			ch := make(chan tea.Msg)
 			ctx, cancel := context.WithCancel(context.Background())
+			m.gestureChan = ch
 			m.gestureCancel = cancel
-			if err := startGestureServer(ctx); err != nil {
+
+			if err := startGestureServer(ctx, ch); err != nil {
 				log.Println("gesture server failed to start:", err)
 				m.gestureCancel = nil
+				close(m.gestureChan)
+				m.gestureChan = nil
+				// TODO: send an Update to menu model to print error message and disable modality?
+				return m, nil
 			}
+			return m, WaitForGestureCmd(m.gestureChan)
 		} else {
-			log.Println("disabling gesture server")
+			if m.gestureChan != nil {
+				close(m.gestureChan)
+				m.gestureChan = nil
+			}
 			if m.gestureCancel != nil {
 				m.gestureCancel()
 				m.gestureCancel = nil
