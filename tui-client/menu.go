@@ -24,16 +24,15 @@ const (
 // menuModeKeyMap defines keybindings active while browsing the menu.
 type menuModeKeyMap struct {
 	Terminal key.Binding
-	Help     key.Binding
 }
 
 func (k menuModeKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Terminal, k.Help}
+	return []key.Binding{k.Terminal}
 }
 
 func (k menuModeKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Terminal, k.Help},
+		{k.Terminal},
 	}
 }
 
@@ -103,10 +102,6 @@ func NewMenu() menu {
 				key.WithKeys(":"),
 				key.WithHelp(":", "command"),
 			),
-			Help: key.NewBinding(
-				key.WithKeys("h"),
-				key.WithHelp("h", "help"),
-			),
 		},
 		termKeys: terminalModeKeyMap{
 			Submit: key.NewBinding(
@@ -148,8 +143,6 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = terminalMode
 				m.alert = ""
 				m.textInput.Focus()
-			case key.Matches(msg, m.menuKeys.Help):
-				return m, SwitchViewCmd(GuideViewIdx)
 			}
 			m.modalitiesList, cmd = m.modalitiesList.Update(msg)
 
@@ -171,14 +164,23 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				parts := strings.Fields(input)
-				cmdStr := SpotifyCommand(strings.ToUpper(parts[0]))
 				arg := ""
 				if len(parts) > 1 {
 					arg = strings.Join(parts[1:], " ")
 				}
 
+				if (parts[0] == "h") {
+					if (arg != "") {
+						m.alert = fmt.Sprintf("could not help with %q", arg)
+						return m, nil
+					}
+					return m, SwitchViewCmd(GuideViewIdx)
+				}
+
+				cmdStr := SpotifyCommand(strings.ToUpper(parts[0]))
+				
 				if !IsValidSpotifyCommand(cmdStr) {
-					m.alert = fmt.Sprintf("unknown command: %q", strings.ToUpper(parts[0]))
+					m.alert = fmt.Sprintf("unknown command: %q", parts[0])
 					return m, nil
 				}
 
