@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
@@ -20,19 +23,16 @@ const (
 
 // menuModeKeyMap defines keybindings active while browsing the menu.
 type menuModeKeyMap struct {
-	Left     key.Binding
-	Right    key.Binding
 	Terminal key.Binding
 	Help     key.Binding
 }
 
 func (k menuModeKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Left, k.Right, k.Terminal, k.Help}
+	return []key.Binding{k.Terminal, k.Help}
 }
 
 func (k menuModeKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Left, k.Right},
 		{k.Terminal, k.Help},
 	}
 }
@@ -53,34 +53,38 @@ func (k terminalModeKeyMap) FullHelp() [][]key.Binding {
 
 // styles
 var (
-    bannerStyle = lipgloss.NewStyle().
-        Bold(true).
-        Foreground(lipgloss.Color("#000000ff")).
-        Background(lipgloss.Color("#1DB954")).
-        Padding(1, 2).
-        MarginBottom(1).
-        Align(lipgloss.Center)
+	bannerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#000000ff")).
+			Background(ColorSpotifyGreen).
+			Padding(1, 2).
+			MarginBottom(1).
+			Align(lipgloss.Center)
 	selectedSpinnerStyle = lipgloss.NewStyle().
-		Padding(0, 1).
-		Foreground(lipgloss.Color("#1DB954"))
-	itemStyle = lipgloss.NewStyle().Padding(0, 1)
+				Padding(0, 1).
+				Foreground(ColorSpotifyGreen)
+	itemStyle  = lipgloss.NewStyle().Padding(0, 1)
+	alertStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4B4B"))
 )
 
 type menu struct {
-	banner	string
-	spinner spinner.Model
-	items     []string
-	selected  int
-	textInput textinput.Model
-	state     menuState
-	menuKeys  menuModeKeyMap
-	termKeys  terminalModeKeyMap
-	help      help.Model
+	banner         string
+	spinner        spinner.Model
+	items          []string
+	selected       int
+	textInput      textinput.Model
+	state          menuState
+	menuKeys       menuModeKeyMap
+	termKeys       terminalModeKeyMap
+	help           help.Model
+	modalitiesList ModalitiesModel
+	alert          string
 }
 
 func NewMenu() menu {
 	ti := textinput.New()
-	ti.Placeholder = "Press t for terminal mode"
+	ti.Placeholder = "command..."
+	ti.Prompt = ": "
 	ti.SetWidth(100)
 	fig := figure.NewFigure("NAME", "rectangles", true)
 	s := spinner.New()
@@ -88,24 +92,16 @@ func NewMenu() menu {
 	s.Style = selectedSpinnerStyle
 
 	return menu{
-		banner: bannerStyle.Render(fig.String()),
-		spinner: s,
+		banner:    bannerStyle.Render(fig.String()),
+		spinner:   s,
 		items:     []string{"H", "V", "A"},
 		selected:  0,
 		textInput: ti,
 		state:     menuMode,
 		menuKeys: menuModeKeyMap{
-			Left: key.NewBinding(
-				key.WithKeys("left"),
-				key.WithHelp("←", "prev"),
-			),
-			Right: key.NewBinding(
-				key.WithKeys("right"),
-				key.WithHelp("→", "next"),
-			),
 			Terminal: key.NewBinding(
-				key.WithKeys("t"),
-				key.WithHelp("t", "terminal mode"),
+				key.WithKeys(":"),
+				key.WithHelp(":", "command"),
 			),
 			Help: key.NewBinding(
 				key.WithKeys("h"),
@@ -122,7 +118,8 @@ func NewMenu() menu {
 				key.WithHelp("esc", "cancel"),
 			),
 		},
-		help: help.New(),
+		help:           help.New(),
+		modalitiesList: NewModalities(),
 	}
 }
 
@@ -138,34 +135,55 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	switch m.state {
-	case menuMode:
-		if msg, ok := msg.(tea.KeyPressMsg); ok {
+	switch msg := msg.(type) {
+	case SpotifyRouteErrorMsg:
+		m.alert = string(msg)
+		return m, nil
+
+	case tea.KeyPressMsg:
+		switch m.state {
+		case menuMode:
 			switch {
-			case key.Matches(msg, m.menuKeys.Left):
-				if m.selected > 0 {
-					m.selected--
-				}
-			case key.Matches(msg, m.menuKeys.Right):
-				if m.selected < len(m.items)-1 {
-					m.selected++
-				}
 			case key.Matches(msg, m.menuKeys.Terminal):
 				m.state = terminalMode
+				m.alert = ""
 				m.textInput.Focus()
 			case key.Matches(msg, m.menuKeys.Help):
 				return m, SwitchViewCmd(GuideViewIdx)
 			}
-		}
+			m.modalitiesList, cmd = m.modalitiesList.Update(msg)
 
-	case terminalMode:
-		if msg, ok := msg.(tea.KeyPressMsg); ok {
+		case terminalMode:
 			switch {
 			case key.Matches(msg, m.termKeys.Exit):
 				m.state = menuMode
+				m.textInput.SetValue("")
 				m.textInput.Blur()
+
 			case key.Matches(msg, m.termKeys.Submit):
-				// TODO: send command somewhere, probably to spotify API wrapper
+				input := strings.TrimSpace(m.textInput.Value())
+				m.textInput.SetValue("")
+				m.state = menuMode
+				m.textInput.Blur()
+
+				if input == "" {
+					return m, nil
+				}
+
+				parts := strings.Fields(input)
+				cmdStr := SpotifyCommand(strings.ToUpper(parts[0]))
+				arg := ""
+				if len(parts) > 1 {
+					arg = strings.Join(parts[1:], " ")
+				}
+
+				if !IsValidSpotifyCommand(cmdStr) {
+					m.alert = fmt.Sprintf("unknown command: %q", strings.ToUpper(parts[0]))
+					return m, nil
+				}
+
+				return m, SpotifyActionCmd(SpotifyActionMsg{Command: cmdStr, Arg: arg})
+
 			default:
 				m.textInput, cmd = m.textInput.Update(msg)
 			}
@@ -176,17 +194,6 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m menu) View() tea.View {
-	renderedItems := make([]string, len(m.items))
-	for i, item := range m.items {
-		if i == m.selected {
-			renderedItems[i] = m.spinner.View()
-		} else {
-			renderedItems[i] = itemStyle.Render(item)
-		}
-	}
-
-	horizontalList := lipgloss.JoinHorizontal(lipgloss.Top, renderedItems...)
-
 	var helpBar string
 	switch m.state {
 	case menuMode:
@@ -195,10 +202,15 @@ func (m menu) View() tea.View {
 		helpBar = m.help.View(m.termKeys)
 	}
 
-	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
+	rows := []string{
 		m.banner,
-		horizontalList,
+		m.modalitiesList.View().Content,
 		m.textInput.View(),
-		helpBar,
-	))
+	}
+	if m.alert != "" {
+		rows = append(rows, alertStyle.Render("! "+m.alert))
+	}
+	rows = append(rows, helpBar)
+
+	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, rows...))
 }

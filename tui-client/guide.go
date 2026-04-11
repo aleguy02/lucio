@@ -36,14 +36,15 @@ type guide struct {
 	helpBar help.Model
 }
 
+// TODO: refactor to use a pointer instead? look at https://github.com/bensadeh/circumflex/blob/main/view/list/list.go#L100 for reference
 func NewGuide() guide {
 	const defaultWidth, defaultHeight = 40, 20
 	items := []list.Item{
-		item{title: "q / ctrl+c", desc: "Quit"},
-		item{title: "h", desc: "Help page"},
+		item{title: "foo", desc: "Foo"},
+		item{title: "bar", desc: "Bar"},
 	}
 	l := list.New(items, list.NewDefaultDelegate(), defaultWidth, defaultHeight)
-	l.Title = "Help"
+	l.Title = "Guide"
 
 	return guide{
 		list: l,

@@ -36,16 +36,11 @@ const (
 	GuideViewIdx
 )
 
-type switchViewMsg int
-
-func SwitchViewCmd(view int) tea.Cmd {
-	return func() tea.Msg { return switchViewMsg(view) }
-}
-
 type Model struct {
 	// menu, vibe, help, stats
-	active int
-	views  []tea.Model
+	active        int
+	views         []tea.Model
+	spotifyClient *SpotifyClient
 }
 
 func NewModel() *Model {
@@ -55,6 +50,7 @@ func NewModel() *Model {
 			NewMenu(),
 			NewGuide(),
 		},
+		spotifyClient: NewSpotifyClient(),
 	}
 }
 
@@ -66,11 +62,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.views[m.active], cmd = m.views[m.active].Update(msg)
 
-	// TODO: refactor to propagate messages to proper screen with Update method. Look at help.go 39 too
 	switch msg := msg.(type) {
-	case switchViewMsg:
+	case SwitchViewMsg:
 		m.active = int(msg)
 		return m, m.views[m.active].Init()
+	case SpotifyActionMsg:
+		if err := m.spotifyClient.Route(msg); err != nil {
+			errMsg := SpotifyRouteErrorMsg(err.Error())
+			return m, func() tea.Msg { return errMsg }
+		}
+		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
