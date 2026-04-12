@@ -15,15 +15,21 @@ import (
 // active session (see how long they've been listening to music, avg session length, and sum total session time)
 
 func main() {
-	if len(os.Getenv("DEBUG")) > 0 {
-		f, err := tea.LogToFile("debug.log", "debug")
-		if err != nil {
-			fmt.Println("fatal:", err)
-			os.Exit(1)
-		}
-		defer f.Close()
+	// Always log to a file: once BubbleTea takes over the terminal,
+	// anything written to stderr is invisible.
+	f, err := tea.LogToFile("debug.log", "")
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
 	}
-	p := tea.NewProgram(NewModel())
+	defer f.Close()
+
+	spotifyClient, err := NewSpotifyClient()
+	if err != nil {
+		log.Fatal("Spotify setup failed: ", err)
+	}
+
+	p := tea.NewProgram(NewModel(spotifyClient))
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -43,14 +49,14 @@ type Model struct {
 	gestureChan		chan tea.Msg
 }
 
-func NewModel() *Model {
+func NewModel(spotifyClient *SpotifyClient) *Model {
 	return &Model{
 		active: MenuViewIdx,
 		views: []tea.Model{
 			NewMenu(),
 			NewGuide(),
 		},
-		spotifyClient: NewSpotifyClient(),
+		spotifyClient: spotifyClient,
 	}
 }
 

@@ -180,10 +180,12 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmdStr := SpotifyCommand(strings.ToUpper(parts[0]))
 				
 				if !IsValidSpotifyCommand(cmdStr) {
+					TerminalLog.Printf("unknown command: %q\n", parts[0])
 					m.alert = fmt.Sprintf("unknown command: %q", parts[0])
 					return m, nil
 				}
 
+				TerminalLog.Printf("command: %q arg: %q\n", cmdStr, arg)
 				return m, SpotifyActionCmd(SpotifyActionMsg{Command: cmdStr, Arg: arg})
 
 			default:

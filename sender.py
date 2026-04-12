@@ -1,8 +1,9 @@
 import argparse
 import math
 import os
+import signal
 import socket
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 import mediapipe as mp
 # from mediapipe.tasks.python import vision
 import cv2
@@ -59,6 +60,15 @@ LANDMARK_CONNECTIONS = [
     (0, 13), (13, 14), (14, 15), (15, 16),
     (0, 17), (17, 18), (18, 19), (19, 20),
 ]
+
+# Shutdown event — set by SIGTERM or SIGINT to stop the main loop cleanly.
+_stop = Event()
+
+def _handle_signal(signum, frame):
+    _stop.set()
+
+signal.signal(signal.SIGTERM, _handle_signal)
+signal.signal(signal.SIGINT, _handle_signal)
 
 # Debounce state
 COOLDOWN = 1.5
@@ -161,8 +171,7 @@ frame_times = deque(maxlen=30)
 measured_fps = -1.0
 
 with GestureRecognizer.create_from_options(options) as recognizer:
-    alive = True
-    while alive:
+    while not _stop.is_set():
         try:
             frame, frame_timestamp_ms = ts.getFrame()
 
@@ -214,13 +223,12 @@ with GestureRecognizer.create_from_options(options) as recognizer:
             cv2.imshow(WIN_NAME, frame)
 
             if cv2.waitKey(1) == 27:  # ESC to quit
-                ts.stop()
-                alive = False
+                _stop.set()
 
         except OSError as e:
             print(f"Socket closed by server: {e}")
-            ts.stop()
-            alive = False
+            _stop.set()
 
+ts.stop()
 cv2.destroyAllWindows()
 sock.close()
