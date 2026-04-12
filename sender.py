@@ -1,15 +1,21 @@
+import argparse
 import math
 import os
+import socket
 from threading import Thread, Lock
 import mediapipe as mp
 # from mediapipe.tasks.python import vision
 import cv2
 import time
 from collections import deque
-import pika
-from dotenv import load_dotenv
+# import pika
+# from dotenv import load_dotenv
 
-load_dotenv()
+# load_dotenv()
+
+parser = argparse.ArgumentParser(description="Spotify gesture controller")
+parser.add_argument("--socket", required=True, metavar="PATH", help="Path to the Unix domain socket")
+args = parser.parse_args()
 
 NUM_HANDS = 1
 HAND_MODEL_CONFIDENCE=0.5
@@ -41,8 +47,8 @@ class ThreadStream:
 GESTURE_MAP = {
     "Open_Palm":   "PLAY",
     "Closed_Fist": "PAUSE",
-    "Thumb_Up":    "SKIP_FORWARD",
-    "Thumb_Down":  "SKIP_BACKWARD",
+    "Thumb_Up":    "SKIPF",
+    "Thumb_Down":  "SKIPB",
 }
 
 # Landmark connections for drawing the hand skeleton
@@ -54,30 +60,24 @@ LANDMARK_CONNECTIONS = [
     (0, 17), (17, 18), (18, 19), (19, 20),
 ]
 
-# RabbitMQ
-connection = pika.BlockingConnection(pika.ConnectionParameters("localhost", heartbeat=15))
-channel = connection.channel()
-channel.queue_declare(queue="spotify_actions", durable=True, arguments={"x-max-length": 1})
-
 # Debounce state
 COOLDOWN = 1.5
 last_action = None
 last_sent = 0.0
 
+sock = None
+
 
 def maybe_publish(action):
     global last_action, last_sent
     now = time.monotonic()
-    if action == last_action and (now - last_sent) < COOLDOWN:
+    # if action == last_action and (now - last_sent) < COOLDOWN:
+    #     return
+    if (now - last_sent) < COOLDOWN:
         return
     last_action = action
     last_sent = now
-    channel.basic_publish(
-        exchange="",
-        routing_key="spotify_actions",
-        body=action,
-        properties=pika.BasicProperties(delivery_mode=1),
-    )
+    sock.sendall((action + "\n").encode())
     print(f"Sent: {action}")
 
 
@@ -96,14 +96,14 @@ def _angle_from_vertical(lms, tip_idx, mcp_idx):
 
 def detect_seek_gesture(lms):
     """
-    Returns 'SEEK_FORWARD', 'SEEK_BACKWARD', or None.
+    Returns 'SEEKF', 'SEEKB', or None.
 
     Uses angles to decide whether a finger is pointing up (MCP→TIP angle from
     vertical < 50°) and y-coordinates to decide whether a finger is curled
     (tip.y > pip.y).
 
-    Two fingers up  (index + middle, ring + pinky curled) → SEEK_FORWARD
-    Three fingers up (index + middle + ring, pinky curled) → SEEK_BACKWARD
+    Two fingers up  (index + middle, ring + pinky curled) → SEEKF
+    Three fingers up (index + middle + ring, pinky curled) → SEEKB
     """
     UP_ANGLE = 50   # degrees from vertical to count as "pointing up"
 
@@ -116,9 +116,9 @@ def detect_seek_gesture(lms):
     ring_curl, pinky_curl = fingers_curl[2], fingers_curl[3]
 
     if index and middle and ring_curl and pinky_curl:
-        return "SEEK_FORWARD"
+        return "SEEKF"
     if index and middle and ring and pinky_curl:
-        return "SEEK_BACKWARD"
+        return "SEEKB"
     return None
 
 
@@ -148,6 +148,9 @@ options = GestureRecognizerOptions(
     min_hand_presence_confidence=HAND_MODEL_CONFIDENCE,
 )
 
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+sock.connect(args.socket)
+
 WIN_NAME = "Spotify Gesture Controller"
 cv2.namedWindow(WIN_NAME, cv2.WINDOW_NORMAL)
 
@@ -160,58 +163,64 @@ measured_fps = -1.0
 with GestureRecognizer.create_from_options(options) as recognizer:
     alive = True
     while alive:
-        frame, frame_timestamp_ms = ts.getFrame()
+        try:
+            frame, frame_timestamp_ms = ts.getFrame()
 
-        if frame is None:
-            break
+            if frame is None:
+                break
 
-        frame_times.append(time.perf_counter())
-        if len(frame_times) == 30:
-            measured_fps = (len(frame_times) - 1) / (frame_times[-1] - frame_times[0])
+            frame_times.append(time.perf_counter())
+            if len(frame_times) == 30:
+                measured_fps = (len(frame_times) - 1) / (frame_times[-1] - frame_times[0])
 
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-        recognizer.recognize_async(mp_image, frame_timestamp_ms)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+            recognizer.recognize_async(mp_image, frame_timestamp_ms)
 
-        h, w = frame.shape[:2]
+            h, w = frame.shape[:2]
 
-        with gesture_lock:
-            result = gesture_res[0]
+            with gesture_lock:
+                result = gesture_res[0]
 
-        gesture_label = "None"
-        if result is not None and result.gestures:
-            gesture_name = result.gestures[0][0].category_name
-            gesture_label = gesture_name
+            gesture_label = "None"
+            if result is not None and result.gestures:
+                gesture_name = result.gestures[0][0].category_name
+                gesture_label = gesture_name
 
-            # Draw hand skeleton
-            if result.hand_landmarks:
-                lms = result.hand_landmarks[0]
-                for lndmark in lms:
-                    cx, cy = int(w * lndmark.x), int(h * lndmark.y)
-                    cv2.circle(frame, (cx, cy), 6, (0, 255, 0), -1)
-                for a, b in LANDMARK_CONNECTIONS:
-                    ax, ay = int(w * lms[a].x), int(h * lms[a].y)
-                    bx, by = int(w * lms[b].x), int(h * lms[b].y)
-                    cv2.line(frame, (ax, ay), (bx, by), (0, 200, 0), 2)
+                # Draw hand skeleton
+                if result.hand_landmarks:
+                    lms = result.hand_landmarks[0]
+                    for lndmark in lms:
+                        cx, cy = int(w * lndmark.x), int(h * lndmark.y)
+                        cv2.circle(frame, (cx, cy), 6, (0, 255, 0), -1)
+                    for a, b in LANDMARK_CONNECTIONS:
+                        ax, ay = int(w * lms[a].x), int(h * lms[a].y)
+                        bx, by = int(w * lms[b].x), int(h * lms[b].y)
+                        cv2.line(frame, (ax, ay), (bx, by), (0, 200, 0), 2)
 
-            seek_action = None
-            if result.hand_landmarks:
-                seek_action = detect_seek_gesture(result.hand_landmarks[0])
+                seek_action = None
+                if result.hand_landmarks:
+                    seek_action = detect_seek_gesture(result.hand_landmarks[0])
 
-            if seek_action:
-                maybe_publish(seek_action)
-            else:
-                action = GESTURE_MAP.get(gesture_name)
-                if action:
-                    maybe_publish(action)
+                if seek_action:
+                    maybe_publish(seek_action)
+                else:
+                    action = GESTURE_MAP.get(gesture_name)
+                    if action:
+                        maybe_publish(action)
 
-        cv2.putText(frame, f"FPS: {measured_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(frame, f"Action: {last_action or 'None'}", (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
-        cv2.putText(frame, f"Gesture: {gesture_label}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
-        cv2.imshow(WIN_NAME, frame)
+            cv2.putText(frame, f"FPS: {measured_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, f"Action: {last_action or 'None'}", (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+            cv2.putText(frame, f"Gesture: {gesture_label}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
+            cv2.imshow(WIN_NAME, frame)
 
-        if cv2.waitKey(1) == 27:  # ESC to quit
+            if cv2.waitKey(1) == 27:  # ESC to quit
+                ts.stop()
+                alive = False
+
+        except OSError as e:
+            print(f"Socket closed by server: {e}")
             ts.stop()
             alive = False
 
-connection.close()
 cv2.destroyAllWindows()
+sock.close()

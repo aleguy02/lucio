@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -35,19 +36,35 @@ func startGestureServer(ctx context.Context, ch chan tea.Msg) error {
 			go func() {
 				defer func() { _ = conn.Close() }()
 				
-				cmdStr := SpotifyCommand("PLAY")
-				arg := ""
-				ch <- SpotifyActionMsg{Command: cmdStr, Arg: arg}
-				log.Println("marker inside gesture server code")
-
+				buf := make([]byte, 256)
 				for {
-					// validate spotify messages here and emit SpotifyActionMsg
-					buf := make([]byte, 5)
-					_, err := conn.Read(buf)
+					n, err := conn.Read(buf)
 					if err != nil {
 						log.Println("client disconnected:", err)
 						return
 					}
+					raw := strings.TrimSpace(string(buf[:n]))
+					if raw == "" {
+						continue
+					}
+
+					parts := strings.Fields(strings.ToUpper(raw))
+					cmd := SpotifyCommand(parts[0])
+					arg := ""
+					if len(parts) > 1 {
+						arg = strings.Join(parts[1:], " ")
+					}
+
+					if (cmd == CmdSeekF || cmd == CmdSeekB) && arg == "" {
+						arg = "10"
+					}
+
+					if !IsValidSpotifyCommand(cmd) {
+						log.Printf("gesture server: unknown command %q\n", cmd)
+						continue
+					}
+
+					ch <- SpotifyActionMsg{Command: cmd, Arg: arg}
 				}
 			}()
 		}
