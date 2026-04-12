@@ -66,6 +66,20 @@ func ToggleGesturesCmd(toggle bool) tea.Cmd {
 	return func() tea.Msg { return ToggleGesturesMsg(toggle) }
 }
 
+// WaitForGestureCmd returns a Cmd that blocks until the next message arrives on
+// ch.  Returns nil when ch is nil (gesture modality is off), which BubbleTea
+// treats as a no-op.
 func WaitForGestureCmd(ch chan tea.Msg) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
 	return func() tea.Msg { return <-ch }
+}
+
+// GestureClientExitedMsg is delivered when the gesture subprocess exits (expected or not).
+// Ch identifies which gesture session this belongs to so stale notifications from a
+// previous session can be ignored if the modality was toggled rapidly.
+type GestureClientExitedMsg struct {
+	Ch  chan tea.Msg
+	Err error
 }

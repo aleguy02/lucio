@@ -135,6 +135,10 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.alert = string(msg)
 		return m, nil
 
+	case GestureClientExitedMsg:
+		m.modalitiesList.Modalities[0].Enabled = false // magic number for the HandGestures modality index
+		return m, nil
+
 	case tea.KeyPressMsg:
 		switch m.state {
 		case menuMode:

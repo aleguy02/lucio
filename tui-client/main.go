@@ -5,8 +5,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
+)
+
+// Paths to the gesture client and its Python interpreter, relative to the
+// working directory when the TUI is launched (typically tui-client/).
+const (
+	gesturePython     = "../.venv/bin/python"
+	gestureSenderPath = "../sender.py"
 )
 
 // TODO
@@ -42,11 +52,12 @@ const (
 
 type Model struct {
 	// menu, vibe, help, stats
-	active         int
-	views          []tea.Model
-	spotifyClient  *SpotifyClient
-	gestureCancel  context.CancelFunc // nil when gesture server is not running
-	gestureChan		chan tea.Msg
+	active        int
+	views         []tea.Model
+	spotifyClient *SpotifyClient
+	gestureCancel context.CancelFunc // nil when gesture server is not running
+	gestureChan   chan tea.Msg
+	gestureProc   *os.Process // nil when gesture client subprocess is not running
 }
 
 func NewModel(spotifyClient *SpotifyClient) *Model {
@@ -77,8 +88,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			errMsg := SpotifyRouteErrorMsg(err.Error())
 			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
 		}
-		
 		return m, WaitForGestureCmd(m.gestureChan)
+
 	case ToggleGesturesMsg:
 		if bool(msg) {
 			ch := make(chan tea.Msg)
@@ -88,26 +99,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if err := startGestureServer(ctx, ch); err != nil {
 				log.Println("gesture server failed to start:", err)
+				cancel()
 				m.gestureCancel = nil
-				close(m.gestureChan)
 				m.gestureChan = nil
-				// TODO: send an Update to menu model to print error message and disable modality?
 				return m, nil
 			}
-			return m, WaitForGestureCmd(m.gestureChan)
-		} else {
-			if m.gestureChan != nil {
-				close(m.gestureChan)
-				m.gestureChan = nil
-			}
-			if m.gestureCancel != nil {
-				m.gestureCancel()
+
+			pythonAbs, _ := filepath.Abs(gesturePython)
+			senderAbs, _ := filepath.Abs(gestureSenderPath)
+			proc, err := launchGestureClient(pythonAbs, senderAbs, ch)
+			if err != nil {
+				log.Printf("gesture client failed to start: %v\n", err)
+				cancel()
 				m.gestureCancel = nil
+				m.gestureChan = nil
+				return m, nil
 			}
+			m.gestureProc = proc
+			return m, WaitForGestureCmd(ch)
+
+		} else {
+			m.stopGestureClient()
+			// gestureChan stays open; it will be closed by GestureClientExitedMsg
+			// once the subprocess actually exits and the monitoring goroutine fires.
 		}
+
+	case GestureClientExitedMsg:
+		// Ignore stale notifications from a previous session.
+		if msg.Ch != m.gestureChan {
+			break
+		}
+		if msg.Err != nil {
+			log.Printf("gesture client exited with error: %v\n", msg.Err)
+		}
+		m.gestureProc = nil
+		if m.gestureCancel != nil {
+			m.gestureCancel()
+			m.gestureCancel = nil
+		}
+		close(m.gestureChan)
+		m.gestureChan = nil
+		// Channel is closed — do NOT issue waitForGesture.
+
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			m.stopGestureClient()
 			if m.gestureCancel != nil {
 				m.gestureCancel()
 			}
@@ -117,9 +154,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() tea.View {
-	if view, ok := m.views[m.active].(tea.Model); ok {
-		return view.View()
+// stopGestureClient sends SIGTERM to the gesture subprocess and cancels the
+// server context.  The channel is left open; it will be closed by the
+// GestureClientExitedMsg handler once cmd.Wait() returns.
+func (m *Model) stopGestureClient() {
+	if m.gestureProc != nil {
+		if err := m.gestureProc.Signal(syscall.SIGTERM); err != nil {
+			log.Printf("failed to signal gesture client: %v\n", err)
+		}
+		m.gestureProc = nil
 	}
-	return tea.NewView("no view models :(")
+	if m.gestureCancel != nil {
+		m.gestureCancel()
+		m.gestureCancel = nil
+	}
+}
+
+// launchGestureClient starts sender.py under the venv Python interpreter.
+// It sets the subprocess working directory to the folder containing sender.py
+// so that relative asset paths (gesture_recognizer.task) resolve correctly.
+// A monitoring goroutine sends GestureClientExitedMsg to ch when the process exits.
+func launchGestureClient(pythonPath, senderPath string, ch chan tea.Msg) (*os.Process, error) {
+	cmd := exec.Command(pythonPath, senderPath, "--socket", SOCKET_PATH)  // TODO: make headless an option? probably not but we can make the window look nice
+	cmd.Dir = filepath.Dir(senderPath)
+	// Stdout/Stderr are nil → discarded (BubbleTea owns the terminal).
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	log.Printf("gesture client started, PID %d\n", cmd.Process.Pid)
+
+	go func() {
+		err := cmd.Wait()
+		log.Printf("gesture client exited: %v\n", err)
+		ch <- GestureClientExitedMsg{Ch: ch, Err: err}
+	}()
+
+	return cmd.Process, nil
+}
+
+func (m Model) View() tea.View {
+	return m.views[m.active].View()
 }

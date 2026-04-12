@@ -16,6 +16,7 @@ from collections import deque
 
 parser = argparse.ArgumentParser(description="Spotify gesture controller")
 parser.add_argument("--socket", required=True, metavar="PATH", help="Path to the Unix domain socket")
+parser.add_argument("-d", "--headless", default=False,  action='store_true', help="Option to run opencv in headless window")
 args = parser.parse_args()
 
 NUM_HANDS = 1
@@ -220,7 +221,8 @@ with GestureRecognizer.create_from_options(options) as recognizer:
             cv2.putText(frame, f"FPS: {measured_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.putText(frame, f"Action: {last_action or 'None'}", (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
             cv2.putText(frame, f"Gesture: {gesture_label}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
-            cv2.imshow(WIN_NAME, frame)
+            if not args.headless:
+                cv2.imshow(WIN_NAME, frame)
 
             if cv2.waitKey(1) == 27:  # ESC to quit
                 _stop.set()
