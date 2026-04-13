@@ -26,7 +26,6 @@ var commandsWithArg = map[SpotifyCommand]bool{
 	CmdSearch: true,
 }
 
-// SpotifyClient wraps the Spotify Web API.
 type SpotifyClient struct {
 	client *spotify.Client
 }
@@ -237,6 +236,101 @@ func (c *SpotifyClient) Route(msg SpotifyActionMsg) error {
 	}
 }
 
+func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error) {
+	if msg.Arg == "" {
+		return nil, fmt.Errorf("SEARCH requires an argument")
+	}
+
+	subcommand, term, _ := strings.Cut(msg.Arg, " ")
+
+	var searchType spotify.SearchType
+	switch subcommand {
+	case "artist":
+		searchType = spotify.SearchTypeArtist
+	case "album":
+		searchType = spotify.SearchTypeAlbum
+	case "track":
+		searchType = spotify.SearchTypeTrack
+	default:
+		return nil, fmt.Errorf("unknown search subcommand %q: expected artist, album, or track", subcommand)
+	}
+
+	if strings.TrimSpace(term) == "" {
+		return nil, fmt.Errorf("SEARCH %s requires a non-empty search term", subcommand)
+	}
+
+	searchResult, err := c.search(term, searchType)
+	if err != nil {
+		return nil, err
+	}
+
+	// metadata will be displayed in insertion order in TUI
+	var results []SpotifyItem
+	if searchResult.Artists != nil {
+		for _, a := range searchResult.Artists.Artists {
+			l := Details{
+				Name: a.SimpleArtist.Name,
+				Metadata: []MetaItem{{
+					Label: "followers", Value: strconv.Itoa(int(a.Followers.Count)),
+				}},
+			}
+			results = append(results, SpotifyItem{
+				Type:           searchType,
+				ShortViewItems: []string{a.SimpleArtist.Name},
+				LongView:       l,
+			})
+		}
+	}
+	if searchResult.Albums != nil {
+		for _, a := range searchResult.Albums.Albums {
+			var artistNames []string
+			for _, artist := range a.Artists {
+				artistNames = append(artistNames, artist.Name)
+			}
+			artists := strings.Join(artistNames, ", ")
+
+			l := Details{
+				Name: a.Name,
+				Metadata: []MetaItem{
+					{Label: "artists", Value: artists},
+					{Label: "# tracks", Value: strconv.Itoa(int(a.TotalTracks))},
+					{Label: "released", Value: a.ReleaseDate},
+				},
+			}
+			results = append(results, SpotifyItem{
+				Type:           searchType,
+				ShortViewItems: []string{a.Name, artists},
+				LongView:       l,
+			})
+		}
+	}
+	if searchResult.Tracks != nil {
+		for _, t := range searchResult.Tracks.Tracks {
+			var artistNames []string
+			for _, artist := range t.Artists {
+				artistNames = append(artistNames, artist.Name)
+			}
+			artists := strings.Join(artistNames, ", ")
+
+			l := Details{
+				Name: t.SimpleTrack.Name,
+				Metadata: []MetaItem{
+					{Label: "artists", Value: artists},
+					{Label: "album", Value: t.Album.Name},
+					{Label: "duration", Value: ""},
+				},
+			}
+			results = append(results, SpotifyItem{
+				Type:           searchType,
+				ShortViewItems: []string{t.SimpleTrack.Name, artists},
+				LongView:       l,
+			})
+		}
+	}
+
+	return results, nil
+}
+
 // parseSeconds validates and converts a seconds string argument.
 func parseSeconds(arg string) (int, error) {
 	if strings.TrimSpace(arg) == "" {
@@ -292,4 +386,29 @@ func (c *SpotifyClient) seekBack(s int) error {
 		newPos = 0
 	}
 	return c.client.Seek(context.Background(), newPos)
+}
+
+func (c *SpotifyClient) search(query string, t spotify.SearchType) (*spotify.SearchResult, error) {
+	result, err := c.client.Search(context.Background(), query, t, spotify.Limit(7))
+	if err != nil {
+		return nil, fmt.Errorf("could not not perform search: %w", err)
+	}
+	return result, nil
+}
+
+// struct to display SearchResult details
+type SpotifyItem struct {
+	Type           spotify.SearchType
+	ShortViewItems []string // will be displayed as * separated string
+	LongView       Details
+}
+
+type Details struct {
+	Name     string
+	Metadata []MetaItem // slice will maintain insertion order
+}
+
+type MetaItem struct {
+	Label string
+	Value string
 }

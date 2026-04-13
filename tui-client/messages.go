@@ -14,7 +14,6 @@ func SwitchViewCmd(view int) tea.Cmd {
 	return func() tea.Msg { return SwitchViewMsg(view) }
 }
 
-
 /*
  * Spotify Actions
  */
@@ -29,6 +28,7 @@ const (
 	CmdSeekB  SpotifyCommand = "SEEKB"
 	CmdSearch SpotifyCommand = "SEARCH"
 )
+
 type SpotifyActionMsg struct {
 	Command SpotifyCommand
 	Arg     string

@@ -173,8 +173,8 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					arg = strings.Join(parts[1:], " ")
 				}
 
-				if (parts[0] == "h") {
-					if (arg != "") {
+				if parts[0] == "h" {
+					if arg != "" {
 						m.alert = fmt.Sprintf("could not help with %q", arg)
 						return m, nil
 					}
@@ -182,7 +182,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				cmdStr := SpotifyCommand(strings.ToUpper(parts[0]))
-				
+
 				if !IsValidSpotifyCommand(cmdStr) {
 					TerminalLog.Printf("unknown command: %q\n", parts[0])
 					m.alert = fmt.Sprintf("unknown command: %q", parts[0])

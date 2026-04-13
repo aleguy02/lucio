@@ -84,6 +84,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.active = int(msg)
 		return m, tea.Batch(m.views[m.active].Init(), WaitForGestureCmd(m.gestureChan))
 	case SpotifyActionMsg:
+		if msg.Command == "SEARCH" {
+			_, err := m.spotifyClient.HandleSearch(msg)
+			if err != nil {
+				errMsg := SpotifyRouteErrorMsg(err.Error())
+				return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
+			}
+			// do something with result, probably propagate it to menu or whatever component holds visuals
+		}
+
 		if err := m.spotifyClient.Route(msg); err != nil {
 			errMsg := SpotifyRouteErrorMsg(err.Error())
 			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
@@ -175,7 +184,7 @@ func (m *Model) stopGestureClient() {
 // so that relative asset paths (gesture_recognizer.task) resolve correctly.
 // A monitoring goroutine sends GestureClientExitedMsg to ch when the process exits.
 func launchGestureClient(pythonPath, senderPath string, ch chan tea.Msg) (*os.Process, error) {
-	cmd := exec.Command(pythonPath, senderPath, "--socket", SOCKET_PATH)  // TODO: make headless an option? probably not but we can make the window look nice
+	cmd := exec.Command(pythonPath, senderPath, "--socket", SOCKET_PATH) // TODO: make headless an option? probably not but we can make the window look nice
 	cmd.Dir = filepath.Dir(senderPath)
 	// Stdout/Stderr are nil → discarded (BubbleTea owns the terminal).
 	if err := cmd.Start(); err != nil {
