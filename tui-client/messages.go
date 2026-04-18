@@ -83,3 +83,17 @@ type GestureClientExitedMsg struct {
 	Ch  chan tea.Msg
 	Err error
 }
+
+/*
+ * Search
+ */
+
+// SearchResultsMsg carries results from a completed search back to the active view.
+type SearchResultsMsg []SpotifyItem
+
+// PlaybackMsg requests playback of a Spotify item.
+// The appropriate Spotify endpoint is selected in SpotifyClient.ExecutePlayback based on Item.Type,
+// making it easy to add album, artist, and playlist playback in the future.
+type PlaybackMsg struct {
+	Item SpotifyItem
+}

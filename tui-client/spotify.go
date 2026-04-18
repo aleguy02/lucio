@@ -322,6 +322,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
+				URI:            t.URI,
 				ShortViewItems: []string{t.SimpleTrack.Name, artists},
 				LongView:       l,
 			})
@@ -399,6 +400,7 @@ func (c *SpotifyClient) search(query string, t spotify.SearchType) (*spotify.Sea
 // struct to display SearchResult details
 type SpotifyItem struct {
 	Type           spotify.SearchType
+	URI            spotify.URI
 	ShortViewItems []string // will be displayed as * separated string
 	LongView       Details
 }
@@ -411,4 +413,22 @@ type Details struct {
 type MetaItem struct {
 	Label string
 	Value string
+}
+
+// PlayTrack starts immediate playback of the given track URI.
+func (c *SpotifyClient) PlayTrack(uri spotify.URI) error {
+	return c.client.PlayOpt(context.Background(), &spotify.PlayOptions{
+		URIs: []spotify.URI{uri},
+	})
+}
+
+// ExecutePlayback dispatches a PlaybackMsg to the appropriate Spotify playback endpoint
+// based on the item type. Add new cases here to support album, artist, and playlist playback.
+func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
+	switch msg.Item.Type {
+	case spotify.SearchTypeTrack:
+		return c.PlayTrack(msg.Item.URI)
+	default:
+		return fmt.Errorf("playback not yet supported for type %v", msg.Item.Type)
+	}
 }

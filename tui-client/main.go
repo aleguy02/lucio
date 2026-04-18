@@ -84,16 +84,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.active = int(msg)
 		return m, tea.Batch(m.views[m.active].Init(), WaitForGestureCmd(m.gestureChan))
 	case SpotifyActionMsg:
-		if msg.Command == "SEARCH" {
-			_, err := m.spotifyClient.HandleSearch(msg)
+		if msg.Command == CmdSearch {
+			results, err := m.spotifyClient.HandleSearch(msg)
 			if err != nil {
 				errMsg := SpotifyRouteErrorMsg(err.Error())
 				return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
 			}
-			// do something with result, probably propagate it to menu or whatever component holds visuals
+			return m, tea.Batch(
+				func() tea.Msg { return SearchResultsMsg(results) },
+				WaitForGestureCmd(m.gestureChan),
+			)
 		}
 
 		if err := m.spotifyClient.Route(msg); err != nil {
+			errMsg := SpotifyRouteErrorMsg(err.Error())
+			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
+		}
+		return m, WaitForGestureCmd(m.gestureChan)
+
+	case PlaybackMsg:
+		if err := m.spotifyClient.ExecutePlayback(msg); err != nil {
 			errMsg := SpotifyRouteErrorMsg(err.Error())
 			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
 		}

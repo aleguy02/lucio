@@ -18,6 +18,8 @@ type menuState int
 const (
 	terminalMode menuState = iota
 	menuMode
+	searchResultsMode
+	spotifyItemMode
 	// TODO: vibeMode (basic skip, minimalist)
 )
 
@@ -78,6 +80,8 @@ type menu struct {
 	help           help.Model
 	modalitiesList ModalitiesModel
 	alert          string
+	searchResults  InteractiveSearchResultsModel
+	spotifyItem    SpotifyItemModel
 }
 
 func NewMenu() menu {
@@ -139,6 +143,11 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.modalitiesList.Modalities[0].Enabled = false // magic number for the HandGestures modality index
 		return m, nil
 
+	case SearchResultsMsg:
+		m.searchResults = NewInteractiveSearchResultsModel([]SpotifyItem(msg))
+		m.state = searchResultsMode
+		return m, nil
+
 	case tea.KeyPressMsg:
 		switch m.state {
 		case menuMode:
@@ -149,6 +158,35 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Focus()
 			}
 			m.modalitiesList, cmd = m.modalitiesList.Update(msg)
+
+		case searchResultsMode:
+			switch {
+			case key.Matches(msg, m.searchResults.Keys.Back):
+				m.state = menuMode
+			case key.Matches(msg, m.searchResults.Keys.Detail):
+				m.spotifyItem = NewSpotifyItemModel(m.searchResults.Selected())
+				m.state = spotifyItemMode
+			case key.Matches(msg, m.searchResults.Keys.Select):
+				item := m.searchResults.Selected()
+				if item.URI != "" {
+					m.state = menuMode
+					return m, func() tea.Msg { return PlaybackMsg{Item: item} }
+				}
+			default:
+				m.searchResults, cmd = m.searchResults.Update(msg)
+			}
+
+		case spotifyItemMode:
+			switch {
+			case key.Matches(msg, m.spotifyItem.Keys.Back):
+				m.state = searchResultsMode
+			case key.Matches(msg, m.spotifyItem.Keys.Select):
+				item := m.spotifyItem.item
+				if item.URI != "" {
+					m.state = menuMode
+					return m, func() tea.Msg { return PlaybackMsg{Item: item} }
+				}
+			}
 
 		case terminalMode:
 			switch {
@@ -202,6 +240,23 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m menu) View() tea.View {
+	switch m.state {
+	case searchResultsMode:
+		helpBar := m.help.View(m.searchResults.Keys)
+		return tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
+			m.banner,
+			m.searchResults.View(),
+			helpBar,
+		))
+	case spotifyItemMode:
+		helpBar := m.help.View(m.spotifyItem.Keys)
+		return tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
+			m.banner,
+			m.spotifyItem.View(),
+			helpBar,
+		))
+	}
+
 	var helpBar string
 	switch m.state {
 	case menuMode:
