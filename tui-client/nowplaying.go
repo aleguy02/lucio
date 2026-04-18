@@ -27,18 +27,18 @@ func (m nowPlaying) Update(msg tea.Msg) (nowPlaying, tea.Cmd) {
 }
 
 var (
-	npContextStyle  = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("#B3B3B3"))
-	npGenreStyle    = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("#535353"))
+	npContextStyle  = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
+	npGenreStyle    = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
 	npVisualStyle   = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder(), true).
 				BorderForeground(lipgloss.Color("#FF00FF")).
 				Width(30).
 				Height(8).
 				Align(lipgloss.Center, lipgloss.Center)
-	npSongStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
+	npSongStyle     = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
 	npAlbumStyle    = lipgloss.NewStyle().Foreground(ColorSpotifyGreen)
-	npArtistStyle   = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("#B3B3B3"))
-	npProgressStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#535353"))
+	npArtistStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
+	npProgressStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
 )
 
 func (m nowPlaying) View() tea.View {
@@ -52,7 +52,7 @@ func (m nowPlaying) View() tea.View {
 		center(npContextStyle, "▶  PLAYING ALBUM"),
 		center(npGenreStyle, "Electronic · Ambient"),
 		"",
-		lipgloss.NewStyle().Width(contentWidth).Align(lipgloss.Center).Render(npVisualStyle.Render("")),
+		center(lipgloss.NewStyle(), npVisualStyle.Render("")),
 		"",
 		center(npSongStyle, "Midnight Drive"),
 		center(npAlbumStyle, "Neon Dusk"),

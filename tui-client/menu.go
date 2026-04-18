@@ -185,7 +185,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		// Global ':' intercept — enters terminal mode from any browsing state.
-		if msg.String() == ":" &&
+		if key.Matches(msg, m.menuKeys.Terminal) &&
 			m.state != searchResultsMode &&
 			m.state != spotifyItemMode &&
 			m.state != helpMode {
@@ -202,7 +202,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentTab = (m.currentTab + 1) % 2
 				return m, nil
 			case key.Matches(msg, m.menuKeys.TabPrev):
-				m.currentTab = (m.currentTab + 1) % 2 // only 2 tabs, same as next
+				m.currentTab = (m.currentTab + 1) % 2
 				return m, nil
 			}
 			// Delegate other keys to the active tab's model.

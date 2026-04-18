@@ -74,9 +74,9 @@ func (m guide) Update(msg tea.Msg) (guide, tea.Cmd) {
 		case key.Matches(msg, m.keys.Back):
 			return m, func() tea.Msg { return backToMenuMsg{} }
 		case key.Matches(msg, m.keys.NextSection):
-			m.section = helpSection((int(m.section) + 1) % 4)
+			m.section = helpSection((int(m.section) + 1) % len(helpSectionLabels))
 		case key.Matches(msg, m.keys.PrevSection):
-			m.section = helpSection((int(m.section) + 3) % 4)
+			m.section = helpSection((int(m.section) + len(helpSectionLabels) - 1) % len(helpSectionLabels))
 		}
 	}
 	return m, nil
@@ -88,13 +88,13 @@ var (
 				Underline(true).
 				Padding(0, 2)
 	guideTabStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#535353")).
+			Foreground(ColorDarkGray).
 			Padding(0, 2)
-	guideDividerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#535353"))
-	guideCmdStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Width(34)
-	guideDescStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#B3B3B3"))
-	guideFaintStyle = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("#535353"))
+	guideDividerStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
+	guideCmdStyle     = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
+	guideDescStyle    = lipgloss.NewStyle().Foreground(ColorMidGray)
+	guideFaintStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
+	guideDivider      = guideDividerStyle.Render(strings.Repeat("─", 60))
 )
 
 func (m guide) View() tea.View {
@@ -108,11 +108,10 @@ func (m guide) View() tea.View {
 		}
 	}
 	tabBar := lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
-	divider := guideDividerStyle.Render(strings.Repeat("─", 60))
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		tabBar,
-		divider,
+		guideDivider,
 		"",
 		m.sectionContent(),
 	)

@@ -56,9 +56,6 @@ type ModalitiesModel struct {
 
 // TODO: refactor to use a pointer instead? look at https://github.com/bensadeh/circumflex/blob/main/view/list/list.go#L100 for reference
 func NewModalities() ModalitiesModel {
-	// darkGray     := lipgloss.Color("#212121")
-	lightGray := lipgloss.Color("#535353")
-	white := lipgloss.Color("#FFFFFF")
 	accentGray := lipgloss.Color("#282828")
 
 	return ModalitiesModel{
@@ -77,7 +74,7 @@ func NewModalities() ModalitiesModel {
 			Background(accentGray),
 		NormalStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(lightGray).
+			BorderForeground(ColorDarkGray).
 			Padding(1, 2).
 			Width(25).
 			Height(8),
@@ -88,9 +85,9 @@ func NewModalities() ModalitiesModel {
 			Foreground(lipgloss.Color("#FF4B4B")),
 		TitleStyle: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(white),
+			Foreground(ColorWhite),
 		DescStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#B3B3B3")).
+			Foreground(ColorMidGray).
 			Faint(true),
 	}
 }
