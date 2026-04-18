@@ -97,3 +97,6 @@ type SearchResultsMsg []SpotifyItem
 type PlaybackMsg struct {
 	Item SpotifyItem
 }
+
+// backToMenuMsg is sent by sub-views (e.g. guide) to return to the menu browsing state.
+type backToMenuMsg struct{}

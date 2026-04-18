@@ -47,7 +47,6 @@ func main() {
 
 const (
 	MenuViewIdx int = iota
-	GuideViewIdx
 )
 
 type Model struct {
@@ -65,7 +64,6 @@ func NewModel(spotifyClient *SpotifyClient) *Model {
 		active: MenuViewIdx,
 		views: []tea.Model{
 			NewMenu(),
-			NewGuide(),
 		},
 		spotifyClient: spotifyClient,
 	}
@@ -80,9 +78,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.views[m.active], cmd = m.views[m.active].Update(msg)
 
 	switch msg := msg.(type) {
-	case SwitchViewMsg:
-		m.active = int(msg)
-		return m, tea.Batch(m.views[m.active].Init(), WaitForGestureCmd(m.gestureChan))
 	case SpotifyActionMsg:
 		if msg.Command == CmdSearch {
 			results, err := m.spotifyClient.HandleSearch(msg)
@@ -162,7 +157,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
+			m.stopGestureClient()
+			if m.gestureCancel != nil {
+				m.gestureCancel()
+			}
+			return m, tea.Quit
+		case "q":
+			// Block quit while the menu's text input is active.
+			if activeMenu, ok := m.views[m.active].(menu); ok && activeMenu.state == terminalMode {
+				break
+			}
 			m.stopGestureClient()
 			if m.gestureCancel != nil {
 				m.gestureCancel()

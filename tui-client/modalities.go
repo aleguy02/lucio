@@ -49,6 +49,9 @@ type ModalitiesModel struct {
 	DisabledStyle lipgloss.Style
 	TitleStyle    lipgloss.Style
 	DescStyle     lipgloss.Style
+
+	width  int
+	height int
 }
 
 // TODO: refactor to use a pointer instead? look at https://github.com/bensadeh/circumflex/blob/main/view/list/list.go#L100 for reference
@@ -98,6 +101,9 @@ func (m ModalitiesModel) Init() tea.Cmd {
 
 func (m ModalitiesModel) Update(msg tea.Msg) (ModalitiesModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, m.Keys.Left):
@@ -147,6 +153,8 @@ func (m ModalitiesModel) View() tea.View {
 		}
 	}
 
-	// Join all modality cards horizontally with gaps
-	return tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, cards...))
+	row := lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+	v := tea.NewView(row)
+	v.AltScreen = true
+	return v
 }

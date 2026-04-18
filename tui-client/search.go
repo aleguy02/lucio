@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	spotify "github.com/zmb3/spotify/v2"
 )
 
 // --- styles ---
@@ -122,6 +123,75 @@ func (m InteractiveSearchResultsModel) View() string {
 	return b.String()
 }
 
+// --- SpotifyItemDetails interface and subtypes ---
+
+// SpotifyItemDetails is the interface all detail screen types must satisfy.
+type SpotifyItemDetails interface {
+	View() string
+	ItemType() string
+	RawItem() SpotifyItem   // used for PlaybackMsg construction
+	relatedItems() []SpotifyItem   // reserved for future graph navigation
+	userStats() map[string]string  // reserved for future user analytics
+}
+
+type TrackDetails struct{ raw SpotifyItem }
+
+func (d TrackDetails) ItemType() string          { return "track" }
+func (d TrackDetails) RawItem() SpotifyItem      { return d.raw }
+func (d TrackDetails) relatedItems() []SpotifyItem    { return nil }
+func (d TrackDetails) userStats() map[string]string   { return nil }
+func (d TrackDetails) View() string {
+	return renderDetails("[Track Details]", d.raw.LongView)
+}
+
+type AlbumDetails struct{ raw SpotifyItem }
+
+func (d AlbumDetails) ItemType() string          { return "album" }
+func (d AlbumDetails) RawItem() SpotifyItem      { return d.raw }
+func (d AlbumDetails) relatedItems() []SpotifyItem    { return nil }
+func (d AlbumDetails) userStats() map[string]string   { return nil }
+func (d AlbumDetails) View() string {
+	return renderDetails("[Album Details]", d.raw.LongView)
+}
+
+type ArtistDetails struct{ raw SpotifyItem }
+
+func (d ArtistDetails) ItemType() string          { return "artist" }
+func (d ArtistDetails) RawItem() SpotifyItem      { return d.raw }
+func (d ArtistDetails) relatedItems() []SpotifyItem    { return nil }
+func (d ArtistDetails) userStats() map[string]string   { return nil }
+func (d ArtistDetails) View() string {
+	return renderDetails("[Artist Details]", d.raw.LongView)
+}
+
+func renderDetails(header string, d Details) string {
+	var b strings.Builder
+	b.WriteString(detailNameStyle.Render(header))
+	b.WriteString("\n")
+	b.WriteString(detailNameStyle.Render(d.Name))
+	b.WriteString("\n")
+	for _, meta := range d.Metadata {
+		b.WriteString(detailLabelStyle.Render(meta.Label+": "))
+		b.WriteString(meta.Value)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// NewSpotifyItemDetails constructs the correct SpotifyItemDetails subtype from a SpotifyItem.
+func NewSpotifyItemDetails(item SpotifyItem) SpotifyItemDetails {
+	switch item.Type {
+	case spotify.SearchTypeTrack:
+		return TrackDetails{raw: item}
+	case spotify.SearchTypeAlbum:
+		return AlbumDetails{raw: item}
+	case spotify.SearchTypeArtist:
+		return ArtistDetails{raw: item}
+	default:
+		return TrackDetails{raw: item}
+	}
+}
+
 // --- SpotifyItemModel ---
 
 type spotifyItemKeyMap struct {
@@ -151,23 +221,17 @@ func defaultSpotifyItemKeyMap() spotifyItemKeyMap {
 }
 
 type SpotifyItemModel struct {
-	item SpotifyItem
-	Keys spotifyItemKeyMap
+	details SpotifyItemDetails
+	Keys    spotifyItemKeyMap
 }
 
 func NewSpotifyItemModel(item SpotifyItem) SpotifyItemModel {
-	return SpotifyItemModel{item: item, Keys: defaultSpotifyItemKeyMap()}
+	return SpotifyItemModel{details: NewSpotifyItemDetails(item), Keys: defaultSpotifyItemKeyMap()}
 }
 
 func (m SpotifyItemModel) View() string {
-	d := m.item.LongView
-	var b strings.Builder
-	b.WriteString(detailNameStyle.Render(d.Name))
-	b.WriteString("\n")
-	for _, meta := range d.Metadata {
-		b.WriteString(detailLabelStyle.Render(meta.Label+": "))
-		b.WriteString(meta.Value)
-		b.WriteString("\n")
+	if m.details == nil {
+		return ""
 	}
-	return b.String()
+	return m.details.View()
 }
