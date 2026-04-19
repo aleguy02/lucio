@@ -212,6 +212,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = menuMode
 					return m, func() tea.Msg { return PlaybackMsg{Item: item} }
 				}
+				TerminalLog.Println("Warning: selected search result does not have URI")
 			default:
 				m.searchResults, cmd = m.searchResults.Update(msg)
 			}
@@ -227,6 +228,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.state = menuMode
 						return m, func() tea.Msg { return PlaybackMsg{Item: item} }
 					}
+					TerminalLog.Println("Warning: selected search result does not have URI")
 				}
 			}
 

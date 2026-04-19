@@ -276,6 +276,8 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
+				URI: a.URI,
+				ID: a.ID,
 				ShortViewItems: []string{a.SimpleArtist.Name},
 				LongView:       l,
 			})
@@ -299,6 +301,8 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
+				URI: a.URI,
+				ID: a.ID,
 				ShortViewItems: []string{a.Name, artists},
 				LongView:       l,
 			})
@@ -323,6 +327,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			results = append(results, SpotifyItem{
 				Type:           searchType,
 				URI:            t.URI,
+				ID: t.ID,
 				ShortViewItems: []string{t.SimpleTrack.Name, artists},
 				LongView:       l,
 			})
@@ -401,6 +406,7 @@ func (c *SpotifyClient) search(query string, t spotify.SearchType) (*spotify.Sea
 type SpotifyItem struct {
 	Type           spotify.SearchType
 	URI            spotify.URI
+	ID			spotify.ID
 	ShortViewItems []string // will be displayed as * separated string
 	LongView       Details
 }
@@ -415,10 +421,16 @@ type MetaItem struct {
 	Value string
 }
 
-// PlayTrack starts immediate playback of the given track URI.
-func (c *SpotifyClient) PlayTrack(uri spotify.URI) error {
+// PlayTrack starts immediate playback of the given track URI. This is a hack because the PlayOpt function only plays the song then stops playback
+func (c *SpotifyClient) PlayTrack(id spotify.ID) error {
+	c.client.QueueSong(context.Background(), id)
+	return c.client.Next(context.Background())
+}
+
+func (c *SpotifyClient) PlayFromContext(uri spotify.URI) error {
+	// queue and play track
 	return c.client.PlayOpt(context.Background(), &spotify.PlayOptions{
-		URIs: []spotify.URI{uri},
+		PlaybackContext: &uri,
 	})
 }
 
@@ -427,7 +439,9 @@ func (c *SpotifyClient) PlayTrack(uri spotify.URI) error {
 func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 	switch msg.Item.Type {
 	case spotify.SearchTypeTrack:
-		return c.PlayTrack(msg.Item.URI)
+		return c.PlayTrack(msg.Item.ID)
+	case spotify.SearchTypeAlbum, spotify.SearchTypeArtist:
+		return c.PlayFromContext(msg.Item.URI)
 	default:
 		return fmt.Errorf("playback not yet supported for type %v", msg.Item.Type)
 	}

@@ -51,7 +51,7 @@ func NewGuide() guide {
 				key.WithHelp("shift+tab", "prev section"),
 			),
 			Back: key.NewBinding(
-				key.WithKeys("esc"),
+				key.WithKeys("esc", "backspace"),
 				key.WithHelp("esc", "back"),
 			),
 		},

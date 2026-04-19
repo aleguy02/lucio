@@ -57,7 +57,7 @@ func defaultSearchResultsKeyMap() searchResultsKeyMap {
 			key.WithHelp("enter", "play"),
 		),
 		Back: key.NewBinding(
-			key.WithKeys("esc"),
+			key.WithKeys("esc", "backspace"),
 			key.WithHelp("esc", "back"),
 		),
 	}
@@ -214,7 +214,7 @@ func defaultSpotifyItemKeyMap() spotifyItemKeyMap {
 			key.WithHelp("enter", "play"),
 		),
 		Back: key.NewBinding(
-			key.WithKeys("esc"),
+			key.WithKeys("esc", "backspace"),
 			key.WithHelp("esc", "back"),
 		),
 	}
