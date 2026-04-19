@@ -129,37 +129,37 @@ func (m InteractiveSearchResultsModel) View() string {
 type SpotifyItemDetails interface {
 	View() string
 	ItemType() string
-	RawItem() SpotifyItem   // used for PlaybackMsg construction
-	relatedItems() []SpotifyItem   // reserved for future graph navigation
-	userStats() map[string]string  // reserved for future user analytics
+	RawItem() SpotifyItem         // used for PlaybackMsg construction
+	relatedItems() []SpotifyItem  // reserved for future graph navigation
+	userStats() map[string]string // reserved for future user analytics
 }
 
 type TrackDetails struct{ raw SpotifyItem }
 
-func (d TrackDetails) ItemType() string          { return "track" }
-func (d TrackDetails) RawItem() SpotifyItem      { return d.raw }
-func (d TrackDetails) relatedItems() []SpotifyItem    { return nil }
-func (d TrackDetails) userStats() map[string]string   { return nil }
+func (d TrackDetails) ItemType() string             { return "track" }
+func (d TrackDetails) RawItem() SpotifyItem         { return d.raw }
+func (d TrackDetails) relatedItems() []SpotifyItem  { return nil }
+func (d TrackDetails) userStats() map[string]string { return nil }
 func (d TrackDetails) View() string {
 	return renderDetails("[Track Details]", d.raw.LongView)
 }
 
 type AlbumDetails struct{ raw SpotifyItem }
 
-func (d AlbumDetails) ItemType() string          { return "album" }
-func (d AlbumDetails) RawItem() SpotifyItem      { return d.raw }
-func (d AlbumDetails) relatedItems() []SpotifyItem    { return nil }
-func (d AlbumDetails) userStats() map[string]string   { return nil }
+func (d AlbumDetails) ItemType() string             { return "album" }
+func (d AlbumDetails) RawItem() SpotifyItem         { return d.raw }
+func (d AlbumDetails) relatedItems() []SpotifyItem  { return nil }
+func (d AlbumDetails) userStats() map[string]string { return nil }
 func (d AlbumDetails) View() string {
 	return renderDetails("[Album Details]", d.raw.LongView)
 }
 
 type ArtistDetails struct{ raw SpotifyItem }
 
-func (d ArtistDetails) ItemType() string          { return "artist" }
-func (d ArtistDetails) RawItem() SpotifyItem      { return d.raw }
-func (d ArtistDetails) relatedItems() []SpotifyItem    { return nil }
-func (d ArtistDetails) userStats() map[string]string   { return nil }
+func (d ArtistDetails) ItemType() string             { return "artist" }
+func (d ArtistDetails) RawItem() SpotifyItem         { return d.raw }
+func (d ArtistDetails) relatedItems() []SpotifyItem  { return nil }
+func (d ArtistDetails) userStats() map[string]string { return nil }
 func (d ArtistDetails) View() string {
 	return renderDetails("[Artist Details]", d.raw.LongView)
 }
@@ -171,7 +171,7 @@ func renderDetails(header string, d Details) string {
 	b.WriteString(detailNameStyle.Render(d.Name))
 	b.WriteString("\n")
 	for _, meta := range d.Metadata {
-		b.WriteString(detailLabelStyle.Render(meta.Label+": "))
+		b.WriteString(detailLabelStyle.Render(meta.Label + ": "))
 		b.WriteString(meta.Value)
 		b.WriteString("\n")
 	}

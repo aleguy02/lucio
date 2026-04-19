@@ -83,15 +83,15 @@ func (m guide) Update(msg tea.Msg) (guide, tea.Cmd) {
 var (
 	guideTabActiveStyle = lipgloss.NewStyle().
 				Foreground(ColorSpotifyGreen).
-				// Underline(true).
-				Padding(0, 2)
+		// Underline(true).
+		Padding(0, 2)
 	guideTabStyle = lipgloss.NewStyle().
 			Foreground(ColorDarkGray).
 			Padding(0, 2)
 	// guideDividerStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
-	guideCmdStyle     = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
-	guideDescStyle    = lipgloss.NewStyle().Foreground(ColorMidGray)
-	guideFaintStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
+	guideCmdStyle   = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
+	guideDescStyle  = lipgloss.NewStyle().Foreground(ColorMidGray)
+	guideFaintStyle = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
 	// guideDivider      = guideDividerStyle.Render(strings.Repeat("─", 60))
 )
 

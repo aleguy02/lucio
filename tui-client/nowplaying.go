@@ -27,14 +27,14 @@ func (m nowPlaying) Update(msg tea.Msg) (nowPlaying, tea.Cmd) {
 }
 
 var (
-	npContextStyle  = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
-	npGenreStyle    = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
-	npVisualStyle   = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder(), true).
-				BorderForeground(lipgloss.Color("#FF00FF")).
-				Width(30).
-				Height(8).
-				Align(lipgloss.Center, lipgloss.Center)
+	npContextStyle = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
+	npGenreStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
+	npVisualStyle  = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder(), true).
+			BorderForeground(lipgloss.Color("#FF00FF")).
+			Width(30).
+			Height(8).
+			Align(lipgloss.Center, lipgloss.Center)
 	npSongStyle     = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
 	npAlbumStyle    = lipgloss.NewStyle().Foreground(ColorSpotifyGreen)
 	npArtistStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)

@@ -276,8 +276,8 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
-				URI: a.URI,
-				ID: a.ID,
+				URI:            a.URI,
+				ID:             a.ID,
 				ShortViewItems: []string{a.SimpleArtist.Name},
 				LongView:       l,
 			})
@@ -301,8 +301,8 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
-				URI: a.URI,
-				ID: a.ID,
+				URI:            a.URI,
+				ID:             a.ID,
 				ShortViewItems: []string{a.Name, artists},
 				LongView:       l,
 			})
@@ -327,7 +327,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			results = append(results, SpotifyItem{
 				Type:           searchType,
 				URI:            t.URI,
-				ID: t.ID,
+				ID:             t.ID,
 				ShortViewItems: []string{t.SimpleTrack.Name, artists},
 				LongView:       l,
 			})
@@ -406,7 +406,7 @@ func (c *SpotifyClient) search(query string, t spotify.SearchType) (*spotify.Sea
 type SpotifyItem struct {
 	Type           spotify.SearchType
 	URI            spotify.URI
-	ID			spotify.ID
+	ID             spotify.ID
 	ShortViewItems []string // will be displayed as * separated string
 	LongView       Details
 }

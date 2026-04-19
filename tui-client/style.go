@@ -12,7 +12,7 @@ var (
 type Theme int
 
 const (
-	ThemeDefault    Theme = iota
+	ThemeDefault Theme = iota
 	ThemeMinimalist
 	ThemeVibes
 )

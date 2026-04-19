@@ -44,12 +44,12 @@ func defaultModalitiesKeyMap() modalitiesKeyMap {
 // styles
 var (
 	bannerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#000000ff")).
-			Background(ColorSpotifyGreen).
-			Padding(1, 2).
-			MarginBottom(1).
-			Align(lipgloss.Center)
+		Bold(true).
+		Foreground(lipgloss.Color("#000000ff")).
+		Background(ColorSpotifyGreen).
+		Padding(1, 2).
+		MarginBottom(1).
+		Align(lipgloss.Center)
 )
 
 type ModalitiesModel struct {
@@ -67,25 +67,24 @@ type ModalitiesModel struct {
 	width  int
 	height int
 
-	banner	string
+	banner string
 }
 
 // TODO: refactor to use a pointer instead? look at https://github.com/bensadeh/circumflex/blob/main/view/list/list.go#L100 for reference
 func NewModalities() ModalitiesModel {
 	opened := true
 	file, err := os.Open("ANSI_shadow.flf")
-    if err != nil {
+	if err != nil {
 		ModalitiesLog.Println("Could not find the font file! Using default font.")
 		opened = false
-    }
-    defer file.Close()
-
+	}
+	defer file.Close()
 
 	fig := figure.NewFigure("LUC!O", "ogre", true)
 	if opened {
 		fig = figure.NewFigureWithFont("LUC!O", file, true)
 	}
-	
+
 	// TODO: should this be with the rest of the colors
 	accentGray := lipgloss.Color("#282828")
 
@@ -121,7 +120,7 @@ func NewModalities() ModalitiesModel {
 		DescStyle: lipgloss.NewStyle().
 			Foreground(ColorMidGray).
 			Faint(true),
-		banner:    bannerStyle.Render(fig.String()),
+		banner: bannerStyle.Render(fig.String()),
 	}
 }
 
