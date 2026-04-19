@@ -259,7 +259,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				switch parts[0] {
-				case "h":
+				case "h", "help":
 					if arg != "" {
 						m.alert = fmt.Sprintf("could not help with %q", arg)
 						return m, nil
