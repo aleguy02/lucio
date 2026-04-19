@@ -1,9 +1,12 @@
 package main
 
 import (
+	"os"
+
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/common-nighthawk/go-figure"
 )
 
 // Modality represents a feature or microservice that can be toggled.
@@ -38,6 +41,17 @@ func defaultModalitiesKeyMap() modalitiesKeyMap {
 	}
 }
 
+// styles
+var (
+	bannerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#000000ff")).
+			Background(ColorSpotifyGreen).
+			Padding(1, 2).
+			MarginBottom(1).
+			Align(lipgloss.Center)
+)
+
 type ModalitiesModel struct {
 	Modalities []Modality
 	Cursor     int
@@ -52,19 +66,37 @@ type ModalitiesModel struct {
 
 	width  int
 	height int
+
+	banner	string
 }
 
 // TODO: refactor to use a pointer instead? look at https://github.com/bensadeh/circumflex/blob/main/view/list/list.go#L100 for reference
 func NewModalities() ModalitiesModel {
+	opened := true
+	file, err := os.Open("ANSI_shadow.flf")
+    if err != nil {
+		ModalitiesLog.Println("Could not find the font file! Using default font.")
+		opened = false
+    }
+    defer file.Close()
+
+
+	fig := figure.NewFigure("LUC!O", "ogre", true)
+	if opened {
+		fig = figure.NewFigureWithFont("LUC!O", file, true)
+	}
+	
+	// TODO: should this be with the rest of the colors
 	accentGray := lipgloss.Color("#282828")
 
 	return ModalitiesModel{
 		Modalities: []Modality{
 			{ID: "gestures", Name: "HAND GESTURES", Description: "Playback control via hand gestures", Enabled: false},
 			{ID: "voice", Name: "VOICE AI", Description: "Playback control via voice commands", Enabled: false},
-			{ID: "agent", Name: "AGENT", Description: "Agentic mode", Enabled: false},
+			{ID: "agent", Name: "AGENT", Description: "Agentic mode\n", Enabled: false},
 		},
 		Keys: defaultModalitiesKeyMap(),
+		// TODO: why are the styles defined here? I guess it makes it so that you can have different selected styles accross pages
 		SelectedStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder(), true).
 			BorderForeground(ColorSpotifyGreen).
@@ -89,6 +121,7 @@ func NewModalities() ModalitiesModel {
 		DescStyle: lipgloss.NewStyle().
 			Foreground(ColorMidGray).
 			Faint(true),
+		banner:    bannerStyle.Render(fig.String()),
 	}
 }
 
@@ -151,7 +184,8 @@ func (m ModalitiesModel) View() tea.View {
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, cards...)
-	v := tea.NewView(row)
+	col := lipgloss.JoinVertical(lipgloss.Center, m.banner, row)
+	v := tea.NewView(col)
 	v.AltScreen = true
 	return v
 }

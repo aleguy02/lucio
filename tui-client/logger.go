@@ -20,4 +20,5 @@ func (l ServiceLogger) Println(v ...any) {
 var (
 	TerminalLog = ServiceLogger{prefix: "terminalMode"}
 	GestureLog  = ServiceLogger{prefix: "gestureServer"}
+	ModalitiesLog = ServiceLogger{prefix: "modalitiesMenu"}
 )

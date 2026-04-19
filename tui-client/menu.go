@@ -10,7 +10,6 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/common-nighthawk/go-figure"
 )
 
 type menuState int
@@ -61,13 +60,6 @@ func (k terminalModeKeyMap) FullHelp() [][]key.Binding {
 
 // styles
 var (
-	bannerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#000000ff")).
-			Background(ColorSpotifyGreen).
-			Padding(1, 2).
-			MarginBottom(1).
-			Align(lipgloss.Center)
 	selectedSpinnerStyle = lipgloss.NewStyle().
 				Padding(0, 1).
 				Foreground(ColorSpotifyGreen)
@@ -75,7 +67,6 @@ var (
 )
 
 type menu struct {
-	banner         string
 	spinner        spinner.Model
 	textInput      textinput.Model
 	state          menuState
@@ -100,13 +91,11 @@ func NewMenu() menu {
 	ti.Placeholder = "command..."
 	ti.Prompt = ": "
 	ti.SetWidth(100)
-	fig := figure.NewFigure("NAME", "rectangles", true)
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
 	s.Style = selectedSpinnerStyle
 
 	return menu{
-		banner:    bannerStyle.Render(fig.String()),
 		spinner:   s,
 		textInput: ti,
 		state:     menuMode,
