@@ -213,6 +213,12 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, func() tea.Msg { return PlaybackMsg{Item: item} }
 				}
 				TerminalLog.Println("Warning: selected search result does not have URI")
+			case key.Matches(msg, m.searchResults.Keys.AltSelect):
+				item := m.searchResults.Selected()
+				if item.ID != "" {
+					return m, func() tea.Msg { return QueueMsg{Id: item.ID.String()} }
+				}
+				TerminalLog.Println("Warning: selected search result does not have ID")
 			default:
 				m.searchResults, cmd = m.searchResults.Update(msg)
 			}
@@ -230,6 +236,12 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					TerminalLog.Println("Warning: selected search result does not have URI")
 				}
+			case key.Matches(msg, m.spotifyItem.Keys.AltSelect):
+				item := m.spotifyItem.details.RawItem()
+				if item.ID != "" {
+					return m, func() tea.Msg { return QueueMsg{Id: item.ID.String()} }
+				}
+				TerminalLog.Println("Warning: selected search result does not have ID")
 			}
 
 		case helpMode:

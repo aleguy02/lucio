@@ -104,6 +104,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, WaitForGestureCmd(m.gestureChan)
 
+	case QueueMsg:
+		if err := m.spotifyClient.QueueSong(msg); err != nil {
+			errMsg := SpotifyRouteErrorMsg(err.Error())
+			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
+		}
+		return m, WaitForGestureCmd(m.gestureChan)
+		
 	case ToggleGesturesMsg:
 		if bool(msg) {
 			ch := make(chan tea.Msg)

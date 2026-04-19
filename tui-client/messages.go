@@ -98,5 +98,9 @@ type PlaybackMsg struct {
 	Item SpotifyItem
 }
 
+type QueueMsg struct {
+	Id string
+}
+
 // backToMenuMsg is sent by sub-views (e.g. guide) to return to the menu browsing state.
 type backToMenuMsg struct{}

@@ -28,14 +28,15 @@ type searchResultsKeyMap struct {
 	Detail key.Binding
 	Select key.Binding
 	Back   key.Binding
+	AltSelect key.Binding
 }
 
 func (k searchResultsKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Detail, k.Select, k.Back}
+	return []key.Binding{k.Up, k.Down, k.Detail, k.Select, k.AltSelect, k.Back}
 }
 
 func (k searchResultsKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.Detail, k.Select, k.Back}}
+	return [][]key.Binding{{k.Up, k.Down, k.Detail, k.Select, k.AltSelect, k.Back}}
 }
 
 func defaultSearchResultsKeyMap() searchResultsKeyMap {
@@ -59,6 +60,10 @@ func defaultSearchResultsKeyMap() searchResultsKeyMap {
 		Back: key.NewBinding(
 			key.WithKeys("esc", "backspace"),
 			key.WithHelp("esc", "back"),
+		),
+		AltSelect: key.NewBinding(
+			key.WithKeys("shift+enter"),
+			key.WithHelp("shift+enter", "queue"),
 		),
 	}
 }
@@ -197,14 +202,15 @@ func NewSpotifyItemDetails(item SpotifyItem) SpotifyItemDetails {
 type spotifyItemKeyMap struct {
 	Select key.Binding
 	Back   key.Binding
+	AltSelect key.Binding
 }
 
 func (k spotifyItemKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Select, k.Back}
+	return []key.Binding{k.Select, k.AltSelect, k.Back}
 }
 
 func (k spotifyItemKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Select, k.Back}}
+	return [][]key.Binding{{k.Select, k.AltSelect, k.Back}}
 }
 
 func defaultSpotifyItemKeyMap() spotifyItemKeyMap {
@@ -216,6 +222,10 @@ func defaultSpotifyItemKeyMap() spotifyItemKeyMap {
 		Back: key.NewBinding(
 			key.WithKeys("esc", "backspace"),
 			key.WithHelp("esc", "back"),
+		),
+		AltSelect: key.NewBinding(
+			key.WithKeys("shift+enter"),
+			key.WithHelp("shift+enter", "queue"),
 		),
 	}
 }

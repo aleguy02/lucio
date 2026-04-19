@@ -422,13 +422,12 @@ type MetaItem struct {
 }
 
 // PlayTrack starts immediate playback of the given track URI. This is a hack because the PlayOpt function only plays the song then stops playback
-func (c *SpotifyClient) PlayTrack(id spotify.ID) error {
+func (c *SpotifyClient) playTrack(id spotify.ID) error {
 	c.client.QueueSong(context.Background(), id)
 	return c.client.Next(context.Background())
 }
 
-func (c *SpotifyClient) PlayFromContext(uri spotify.URI) error {
-	// queue and play track
+func (c *SpotifyClient) playFromContext(uri spotify.URI) error {
 	return c.client.PlayOpt(context.Background(), &spotify.PlayOptions{
 		PlaybackContext: &uri,
 	})
@@ -439,10 +438,14 @@ func (c *SpotifyClient) PlayFromContext(uri spotify.URI) error {
 func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 	switch msg.Item.Type {
 	case spotify.SearchTypeTrack:
-		return c.PlayTrack(msg.Item.ID)
+		return c.playTrack(msg.Item.ID)
 	case spotify.SearchTypeAlbum, spotify.SearchTypeArtist:
-		return c.PlayFromContext(msg.Item.URI)
+		return c.playFromContext(msg.Item.URI)
 	default:
 		return fmt.Errorf("playback not yet supported for type %v", msg.Item.Type)
 	}
+}
+
+func (c *SpotifyClient) QueueSong(msg QueueMsg) error {
+	return c.client.QueueSong(context.Background(), spotify.ID(msg.Id))
 }
