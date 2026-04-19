@@ -92,7 +92,7 @@ func NewModalities() ModalitiesModel {
 	return ModalitiesModel{
 		Modalities: []Modality{
 			{ID: "gestures", Name: "HAND GESTURES", Description: "Playback control via hand gestures", Enabled: false},
-			{ID: "voice", Name: "VOICE AI", Description: "Playback control via voice commands", Enabled: false},
+			{ID: "voice", Name: "VOICE COMMANDS", Description: "Playback control via voice commands", Enabled: false},
 			{ID: "agent", Name: "AGENT", Description: "Agentic mode\n", Enabled: false},
 		},
 		Keys: defaultModalitiesKeyMap(),

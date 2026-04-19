@@ -1,8 +1,6 @@
 package main
 
 import (
-	"strings"
-
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,7 +15,7 @@ const (
 	helpAgent
 )
 
-var helpSectionLabels = []string{"Terminal Mode", "Gesture Mode", "Voice Mode", "Agent Mode"}
+var helpSectionLabels = []string{"TERMINAL COMMANDS", "HAND GESTURES", "VOICE COMMANDS", "AGENT"}
 
 type guideKeyMap struct {
 	NextSection key.Binding
@@ -85,16 +83,16 @@ func (m guide) Update(msg tea.Msg) (guide, tea.Cmd) {
 var (
 	guideTabActiveStyle = lipgloss.NewStyle().
 				Foreground(ColorSpotifyGreen).
-				Underline(true).
+				// Underline(true).
 				Padding(0, 2)
 	guideTabStyle = lipgloss.NewStyle().
 			Foreground(ColorDarkGray).
 			Padding(0, 2)
-	guideDividerStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
+	// guideDividerStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
 	guideCmdStyle     = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
 	guideDescStyle    = lipgloss.NewStyle().Foreground(ColorMidGray)
 	guideFaintStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
-	guideDivider      = guideDividerStyle.Render(strings.Repeat("─", 60))
+	// guideDivider      = guideDividerStyle.Render(strings.Repeat("─", 60))
 )
 
 func (m guide) View() tea.View {
@@ -111,7 +109,7 @@ func (m guide) View() tea.View {
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		tabBar,
-		guideDivider,
+		// guideDivider,
 		"",
 		m.sectionContent(),
 	)
@@ -132,17 +130,18 @@ func (m guide) sectionContent() string {
 	switch m.section {
 	case helpTerminal:
 		rows := [][]string{
-			{"PLAY", "Resume playback"},
-			{"PAUSE", "Pause playback"},
-			{"SKIPF", "Skip to next track"},
-			{"SKIPB", "Skip to previous track"},
-			{"SEEKF <seconds>", "Seek forward N seconds"},
-			{"SEEKB <seconds>", "Seek backward N seconds"},
-			{"SEARCH artist <query>", "Search for an artist"},
-			{"SEARCH album <query>", "Search for an album"},
-			{"SEARCH track <query>", "Search for a track"},
+			{"play", "Resume playback"},
+			{"pause", "Pause playback"},
+			{"skipf", "Skip to next track"},
+			{"skipb", "Skip to previous track"},
+			{"seekf <seconds>", "Seek forward N seconds"},
+			{"seekb <seconds>", "Seek backward N seconds"},
+			{"search artist <query>", "Search for an artist"},
+			{"search album <query>", "Search for an album"},
+			{"search track <query>", "Search for a track"},
 			{"details", "Open details for current song"},
-			{"theme default|minimalist|vibes", "Set visual theme"},
+			{"theme [default|minimalist|vibes]", "Set visual theme"},
+			{"help", "Open help"},
 		}
 		var lines []string
 		for _, r := range rows {
@@ -152,14 +151,14 @@ func (m guide) sectionContent() string {
 
 	case helpGesture:
 		rows := [][]string{
-			{"Open_Palm", "PLAY"},
-			{"Closed_Fist", "PAUSE"},
-			{"Thumb_Up", "SKIPF"},
-			{"Thumb_Down", "SKIPB"},
+			{"✋ open palm", "Resume playback"},
+			{"✊ closed fist", "Pause playback"},
+			{"👍 thumb up", "Skip to next track"},
+			{"👎 thumb down", "Skip to previous track"},
 		}
 		var lines []string
 		for _, r := range rows {
-			lines = append(lines, guideCmdStyle.Render(r[0])+" → "+guideDescStyle.Render(r[1]))
+			lines = append(lines, guideCmdStyle.Render(r[0])+guideDescStyle.Render(r[1]))
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 
