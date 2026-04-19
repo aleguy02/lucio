@@ -109,7 +109,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			errMsg := SpotifyRouteErrorMsg(err.Error())
 			return m, tea.Batch(func() tea.Msg { return errMsg }, WaitForGestureCmd(m.gestureChan))
 		}
-		return m, WaitForGestureCmd(m.gestureChan)
+		label := "queued"
+		if msg.Name != "" {
+			label = fmt.Sprintf("queued: %s", msg.Name)
+		}
+		successMsg := QueueSuccessMsg(label)
+		return m, tea.Batch(func() tea.Msg { return successMsg }, WaitForGestureCmd(m.gestureChan))
 		
 	case ToggleGesturesMsg:
 		if bool(msg) {

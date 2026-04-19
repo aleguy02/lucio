@@ -99,8 +99,12 @@ type PlaybackMsg struct {
 }
 
 type QueueMsg struct {
-	Id string
+	Id   string
+	Name string
 }
+
+// QueueSuccessMsg is sent after a song is successfully added to the queue.
+type QueueSuccessMsg string
 
 // backToMenuMsg is sent by sub-views (e.g. guide) to return to the menu browsing state.
 type backToMenuMsg struct{}

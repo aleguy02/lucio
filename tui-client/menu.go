@@ -63,7 +63,8 @@ var (
 	selectedSpinnerStyle = lipgloss.NewStyle().
 				Padding(0, 1).
 				Foreground(ColorSpotifyGreen)
-	alertStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4B4B"))
+	alertStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4B4B"))
+	successAlertStyle = lipgloss.NewStyle().Foreground(ColorSpotifyGreen)
 )
 
 type menu struct {
@@ -75,6 +76,7 @@ type menu struct {
 	help           help.Model
 	modalitiesList ModalitiesModel
 	alert          string
+	successAlert   string
 	searchResults  InteractiveSearchResultsModel
 	spotifyItem    SpotifyItemModel
 
@@ -161,6 +163,12 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SpotifyRouteErrorMsg:
 		m.alert = string(msg)
+		m.successAlert = ""
+		return m, nil
+
+	case QueueSuccessMsg:
+		m.successAlert = string(msg)
+		m.alert = ""
 		return m, nil
 
 	case GestureClientExitedMsg:
@@ -203,6 +211,8 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.searchResults.Keys.Back):
 				m.state = menuMode
+				m.successAlert = ""
+				m.alert = ""
 			case key.Matches(msg, m.searchResults.Keys.Detail):
 				m.spotifyItem = NewSpotifyItemModel(m.searchResults.Selected())
 				m.state = spotifyItemMode
@@ -216,7 +226,11 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.searchResults.Keys.AltSelect):
 				item := m.searchResults.Selected()
 				if item.ID != "" {
-					return m, func() tea.Msg { return QueueMsg{Id: item.ID.String()} }
+					name := ""
+					if len(item.ShortViewItems) > 0 {
+						name = item.ShortViewItems[0]
+					}
+					return m, func() tea.Msg { return QueueMsg{Id: item.ID.String(), Name: name} }
 				}
 				TerminalLog.Println("Warning: selected search result does not have ID")
 			default:
@@ -239,7 +253,11 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.spotifyItem.Keys.AltSelect):
 				item := m.spotifyItem.details.RawItem()
 				if item.ID != "" {
-					return m, func() tea.Msg { return QueueMsg{Id: item.ID.String()} }
+					name := ""
+					if len(item.ShortViewItems) > 0 {
+						name = item.ShortViewItems[0]
+					}
+					return m, func() tea.Msg { return QueueMsg{Id: item.ID.String(), Name: name} }
 				}
 				TerminalLog.Println("Warning: selected search result does not have ID")
 			}
@@ -339,7 +357,7 @@ func (m menu) View() tea.View {
 		helpBar := m.help.View(m.searchResults.Keys)
 		v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
 			m.searchResults.View(),
-			helpBar,
+			m.searchItemBottom(helpBar),
 		))
 		v.AltScreen = true
 		return v
@@ -348,7 +366,7 @@ func (m menu) View() tea.View {
 		helpBar := m.help.View(m.spotifyItem.Keys)
 		v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
 			m.spotifyItem.View(),
-			helpBar,
+			m.searchItemBottom(helpBar),
 		))
 		v.AltScreen = true
 		return v
@@ -391,6 +409,18 @@ func (m menu) bottomBar() string {
 		}
 		return m.help.View(m.menuKeys)
 	}
+}
+
+// searchItemBottom builds the bottom bar for searchResultsMode and spotifyItemMode,
+// prepending an alert or success line above the helpBar when present.
+func (m menu) searchItemBottom(helpBar string) string {
+	if m.alert != "" {
+		return lipgloss.JoinVertical(lipgloss.Left, alertStyle.Render("! "+m.alert), helpBar)
+	}
+	if m.successAlert != "" {
+		return lipgloss.JoinVertical(lipgloss.Left, successAlertStyle.Render("+ "+m.successAlert), helpBar)
+	}
+	return helpBar
 }
 
 // renderLayout places tabContent in the upper portion of the screen and
