@@ -21,4 +21,5 @@ var (
 	TerminalLog   = ServiceLogger{prefix: "terminalMode"}
 	GestureLog    = ServiceLogger{prefix: "gestureServer"}
 	ModalitiesLog = ServiceLogger{prefix: "modalitiesMenu"}
+	NowPlayingLog = ServiceLogger{prefix: "nowPlaying"}
 )

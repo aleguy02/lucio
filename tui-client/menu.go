@@ -135,7 +135,7 @@ func NewMenu() menu {
 }
 
 func (m menu) Init() tea.Cmd {
-	return m.spinner.Tick
+	return tea.Batch(m.spinner.Tick, m.nowPlaying.Init())
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -178,6 +178,10 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SearchResultsMsg:
 		m.searchResults = NewInteractiveSearchResultsModel([]SpotifyItem(msg))
 		m.state = searchResultsMode
+		return m, nil
+
+	case SpotifyPlaybackStateMsg:
+		m.nowPlaying, _ = m.nowPlaying.Update(msg)
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -411,8 +415,6 @@ func (m menu) bottomBar() string {
 	}
 }
 
-// searchItemBottom builds the bottom bar for searchResultsMode and spotifyItemMode,
-// prepending an alert or success line above the helpBar when present.
 func (m menu) searchItemBottom(helpBar string) string {
 	if m.alert != "" {
 		return lipgloss.JoinVertical(lipgloss.Left, alertStyle.Render("! "+m.alert), helpBar)

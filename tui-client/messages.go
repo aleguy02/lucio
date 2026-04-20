@@ -38,6 +38,10 @@ func SpotifyActionCmd(msg SpotifyActionMsg) tea.Cmd {
 	return func() tea.Msg { return msg }
 }
 
+type SpotifyPlaybackStateMsg struct {
+	State PlaybackState
+}
+
 // SpotifyRouteErrorMsg is sent back to the active view when SpotifyClient.Route
 // returns an error, so the UI can surface it to the user.
 type SpotifyRouteErrorMsg string
@@ -103,7 +107,6 @@ type QueueMsg struct {
 	Name string
 }
 
-// QueueSuccessMsg is sent after a song is successfully added to the queue.
 type QueueSuccessMsg string
 
 // backToMenuMsg is sent by sub-views (e.g. guide) to return to the menu browsing state.

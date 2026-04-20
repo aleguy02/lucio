@@ -1,13 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
 type nowPlaying struct {
-	width  int
-	height int
+	width    int
+	height   int
+	playback PlaybackState
 }
 
 func NewNowPlaying() nowPlaying {
@@ -19,11 +23,34 @@ func (m nowPlaying) Init() tea.Cmd {
 }
 
 func (m nowPlaying) Update(msg tea.Msg) (nowPlaying, tea.Cmd) {
-	if msg, ok := msg.(tea.WindowSizeMsg); ok {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case SpotifyPlaybackStateMsg:
+		// NowPlayingLog.Println(msg)  // this is printing actual song data
+		m.playback = msg.State
 	}
 	return m, nil
+}
+
+func msToMMSS(ms int) string {
+	total := ms / 1000
+	return fmt.Sprintf("%d:%02d", total/60, total%60)
+}
+
+func progressBar(progress, duration int, width int) string {
+	if duration <= 0 {
+		return strings.Repeat("─", width)
+	}
+	filled := int(float64(progress) / float64(duration) * float64(width))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	return strings.Repeat("─", filled) + "●" + strings.Repeat("─", width-filled)
 }
 
 var (
@@ -48,17 +75,45 @@ func (m nowPlaying) View() tea.View {
 		return lipgloss.NewStyle().Width(contentWidth).Align(lipgloss.Center).Inherit(s).Render(text)
 	}
 
+	t := m.playback.Track
+	// NowPlayingLog.Println(t)  // this is outputting 2026/04/20 01:23:47 [nowPlaying] {0   [] { []}}
+	trackName := "No track playing"
+	albumName := ""
+	artistName := ""
+	if len(t.ShortViewItems) > 0 {
+		trackName = t.ShortViewItems[0]
+	}
+	if len(t.ShortViewItems) > 1 {
+		artistName = t.ShortViewItems[1]
+	}
+	var duration int
+	for _, meta := range t.LongView.Metadata {
+		switch meta.Label {
+		case "album":
+			albumName = meta.Value
+		case "duration":
+			fmt.Sscanf(meta.Value, "%d", &duration)
+		}
+	}
+
+	playIcon := "▶  PLAYING"
+	if !m.playback.IsPlaying {
+		playIcon = "⏸  PAUSED"
+	}
+
+	const barWidth = 20
+	bar := msToMMSS(m.playback.Progress) + " " + progressBar(m.playback.Progress, duration, barWidth) + " " + msToMMSS(duration)
+
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		center(npContextStyle, "▶  PLAYING ALBUM"),
-		center(npGenreStyle, "Electronic · Ambient"),
+		center(npContextStyle, playIcon),
 		"",
 		center(lipgloss.NewStyle(), npVisualStyle.Render("")),
 		"",
-		center(npSongStyle, "Midnight Drive"),
-		center(npAlbumStyle, "Neon Dusk"),
-		center(npArtistStyle, "The Architects"),
+		center(npSongStyle, trackName),
+		center(npAlbumStyle, albumName),
+		center(npArtistStyle, artistName),
 		"",
-		center(npProgressStyle, "1:23 ──────────●──────── 4:07"),
+		center(npProgressStyle, bar),
 	)
 
 	v := tea.NewView(content)

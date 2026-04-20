@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -45,6 +46,14 @@ func main() {
 	}
 }
 
+type PSTickMsg string
+
+func doTick() tea.Cmd {
+    return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+        return PSTickMsg("hi")
+    })
+}
+
 const (
 	MenuViewIdx int = iota
 )
@@ -70,7 +79,7 @@ func NewModel(spotifyClient *SpotifyClient) *Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.views[m.active].Init()
+	return tea.Batch(m.views[m.active].Init(), doTick())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -115,6 +124,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		successMsg := QueueSuccessMsg(label)
 		return m, tea.Batch(func() tea.Msg { return successMsg }, WaitForGestureCmd(m.gestureChan))
+
+	case PSTickMsg:
+		state, err := m.spotifyClient.getPlaybackState()
+		if err != nil {
+			NowPlayingLog.Println(err)
+			return m, tea.Batch(func() tea.Msg { return err }, WaitForGestureCmd(m.gestureChan), doTick())
+		}
+		stateMsg := SpotifyPlaybackStateMsg{
+			State: state,
+		}
+		m.views[0], _ = m.views[0].Update(stateMsg)
+		return m, tea.Batch(WaitForGestureCmd(m.gestureChan), doTick())
 		
 	case ToggleGesturesMsg:
 		if bool(msg) {

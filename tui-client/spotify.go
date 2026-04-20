@@ -321,7 +321,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 				Metadata: []MetaItem{
 					{Label: "artists", Value: artists},
 					{Label: "album", Value: t.Album.Name},
-					{Label: "duration", Value: ""},
+					{Label: "duration", Value: strconv.Itoa(int(t.SimpleTrack.Duration))},
 				},
 			}
 			results = append(results, SpotifyItem{
@@ -402,7 +402,57 @@ func (c *SpotifyClient) search(query string, t spotify.SearchType) (*spotify.Sea
 	return result, nil
 }
 
-// struct to display SearchResult details
+func (c *SpotifyClient) getPlaybackState() (PlaybackState, error) {
+	result, err := c.client.PlayerCurrentlyPlaying(context.Background())
+	if err != nil {
+		return PlaybackState{}, fmt.Errorf("could not get playback state: %w", err)
+	}
+	if result.Item == nil {
+		return PlaybackState{IsPlaying: false}, nil
+	}
+	t := result.Item
+	var artistNames []string
+	for _, artist := range t.Artists {
+		artistNames = append(artistNames, artist.Name)
+	}
+	artists := strings.Join(artistNames, ", ")
+
+	return PlaybackState{
+		Progress:  int(result.Progress), // ms
+		IsPlaying: result.Playing,
+		Context:   1,
+		Track: SpotifyItem{
+			Type:           spotify.SearchTypeTrack,
+			URI:            t.URI,
+			ID:             t.ID,
+			ShortViewItems: []string{t.SimpleTrack.Name, artists},
+			LongView: Details{
+				Name: t.SimpleTrack.Name,
+				Metadata: []MetaItem{
+					{Label: "artists", Value: artists},
+					{Label: "album", Value: t.Album.Name},
+					{Label: "duration", Value: strconv.Itoa(int(t.SimpleTrack.Duration))},
+				},
+			},
+		},
+	}, nil
+}
+
+// PlayTrack starts immediate playback of the given track URI. This is a hack because the PlayOpt function only plays the song then stops playback
+func (c *SpotifyClient) playTrack(id spotify.ID) error {
+	c.client.QueueSong(context.Background(), id)
+	return c.client.Next(context.Background())
+}
+
+func (c *SpotifyClient) playFromContext(uri spotify.URI) error {
+	return c.client.PlayOpt(context.Background(), &spotify.PlayOptions{
+		PlaybackContext: &uri,
+	})
+}
+
+/*
+ * Structs to pass around in frontend 
+ */
 type SpotifyItem struct {
 	Type           spotify.SearchType
 	URI            spotify.URI
@@ -421,16 +471,12 @@ type MetaItem struct {
 	Value string
 }
 
-// PlayTrack starts immediate playback of the given track URI. This is a hack because the PlayOpt function only plays the song then stops playback
-func (c *SpotifyClient) playTrack(id spotify.ID) error {
-	c.client.QueueSong(context.Background(), id)
-	return c.client.Next(context.Background())
-}
-
-func (c *SpotifyClient) playFromContext(uri spotify.URI) error {
-	return c.client.PlayOpt(context.Background(), &spotify.PlayOptions{
-		PlaybackContext: &uri,
-	})
+// TODO: this could be extended with device, repeat state, shuffle state
+type PlaybackState struct {
+	Progress	int
+	IsPlaying	bool
+	Context		int // TODO
+	Track		SpotifyItem
 }
 
 // ExecutePlayback dispatches a PlaybackMsg to the appropriate Spotify playback endpoint
