@@ -34,11 +34,6 @@ func (m nowPlaying) Update(msg tea.Msg) (nowPlaying, tea.Cmd) {
 	return m, nil
 }
 
-func msToMMSS(ms int) string {
-	total := ms / 1000
-	return fmt.Sprintf("%d:%02d", total/60, total%60)
-}
-
 func progressBar(progress, duration int, width int) string {
 	if duration <= 0 {
 		return strings.Repeat("─", width)

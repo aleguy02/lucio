@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -177,7 +178,19 @@ func renderDetails(header string, d Details) string {
 	b.WriteString("\n")
 	for _, meta := range d.Metadata {
 		b.WriteString(detailLabelStyle.Render(meta.Label + ": "))
-		b.WriteString(meta.Value)
+		if meta.Label == "duration" {
+			
+			ms, err := strconv.Atoi(meta.Value)
+			if err != nil {
+				b.WriteString("could not get duration")
+			} else {
+				MMSS := msToMMSS(ms)
+				b.WriteString(MMSS)
+			}
+
+		} else {
+			b.WriteString(meta.Value)
+		}
 		b.WriteString("\n")
 	}
 	return b.String()
