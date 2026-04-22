@@ -37,7 +37,7 @@ func (m nowPlaying) Update(msg tea.Msg) (nowPlaying, tea.Cmd) {
 
 func progressBar(progress, duration int, width int) string {
 	if duration <= 0 {
-		return strings.Repeat("─", width)
+		return lipgloss.NewStyle().Foreground(ColorDarkGray).Render(strings.Repeat("█", width))
 	}
 	filled := int(float64(progress) / float64(duration) * float64(width))
 	if filled < 0 {
@@ -46,24 +46,27 @@ func progressBar(progress, duration int, width int) string {
 	if filled > width {
 		filled = width
 	}
-	return strings.Repeat("─", filled) + "●" + strings.Repeat("─", width-filled)
+	filledPart := lipgloss.NewStyle().Foreground(ColorWhite).Render(strings.Repeat("█", filled))
+	emptyPart := lipgloss.NewStyle().Foreground(ColorDarkGray).Render(strings.Repeat("█", width-filled))
+	return filledPart + emptyPart
 }
 
 var (
-	npContextStyle  = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
-	npVisualStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(lipgloss.Color("#FF00FF")).Width(30).Height(8).Align(lipgloss.Center, lipgloss.Center)
-	npSongStyle     = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
-	npAlbumStyle    = lipgloss.NewStyle().Foreground(ColorSpotifyGreen)
-	npArtistStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
-	npProgressStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
+	npBoxStyle    = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(ColorWhite).Padding(1, 2)
+	npSongStyle   = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
+	npAlbumStyle  = lipgloss.NewStyle().Foreground(ColorLightYellow)
+	npArtistStyle = lipgloss.NewStyle().Foreground(ColorLightGrey)
+	npTimeStyle   = lipgloss.NewStyle().Foreground(ColorMidGray)
 )
 
 func (m nowPlaying) View() tea.View {
-	const contentWidth = 34
-
-	center := func(s lipgloss.Style, text string) string {
-		return lipgloss.NewStyle().Width(contentWidth).Align(lipgloss.Center).Inherit(s).Render(text)
+	const horizontalPadding = 2
+	const borderWidth = 2
+	boxWidth := m.width
+	if boxWidth < 20 {
+		boxWidth = 20
 	}
+	contentWidth := boxWidth - horizontalPadding*2 - borderWidth
 
 	t := m.playback.Track
 	trackName := "No track playing"
@@ -87,27 +90,32 @@ func (m nowPlaying) View() tea.View {
 		}
 	}
 
-	playIcon := "▶  PLAYING"
-	if !m.playback.IsPlaying {
-		playIcon = "⏸  PAUSED"
-	}
-
-	const barWidth = 20
-	bar := msToMMSS(m.playback.Progress) + " " + progressBar(m.playback.Progress, duration, barWidth) + " " + msToMMSS(duration)
-
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		center(npContextStyle, playIcon),
-		"",
-		center(lipgloss.NewStyle(), npVisualStyle.Render("")),
-		"",
-		center(npSongStyle, trackName),
-		center(npAlbumStyle, albumName),
-		center(npArtistStyle, artistName),
-		"",
-		center(npProgressStyle, bar),
+	song := npSongStyle.Render(trackName)
+	album := npAlbumStyle.Render("  " + albumName)
+	titleLine := lipgloss.NewStyle().Width(contentWidth).Render(
+		lipgloss.JoinHorizontal(lipgloss.Top, song, album),
 	)
 
-	v := tea.NewView(content)
+	timeStr := msToMMSS(m.playback.Progress) + " "
+	timeEnd := " " + msToMMSS(duration)
+	barWidth := contentWidth - len(timeStr) - len(timeEnd)
+	if barWidth < 1 {
+		barWidth = 1
+	}
+	timeBefore := npTimeStyle.Render(timeStr)
+	timeAfter := npTimeStyle.Render(timeEnd)
+	bar := timeBefore + progressBar(m.playback.Progress, duration, barWidth) + timeAfter
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		titleLine,
+		npArtistStyle.Render(artistName),
+		"",
+		bar,
+	)
+
+	rendered := npBoxStyle.Width(boxWidth).Render(content)
+
+	v := tea.NewView(rendered)
 	v.AltScreen = true
 	return v
 }
