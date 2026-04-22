@@ -143,12 +143,14 @@ GestureRecognizerResult = mp.tasks.vision.GestureRecognizerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
 
 gesture_res = [None]
+gesture_frame = [None]   # camera frame that produced the latest result
 gesture_lock = Lock()
 
 
 def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
     with gesture_lock:
         gesture_res[0] = result
+        gesture_frame[0] = output_image.numpy_view().copy()
 
 
 options = GestureRecognizerOptions(
@@ -186,10 +188,15 @@ with GestureRecognizer.create_from_options(options) as recognizer:
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
             recognizer.recognize_async(mp_image, frame_timestamp_ms)
 
-            h, w = frame.shape[:2]
-
             with gesture_lock:
                 result = gesture_res[0]
+                display_frame = gesture_frame[0]
+
+            # Fall back to the live frame until the first callback fires.
+            if display_frame is None:
+                display_frame = frame
+
+            h, w = display_frame.shape[:2]
 
             gesture_label = "None"
             if result is not None and result.gestures:
@@ -201,11 +208,11 @@ with GestureRecognizer.create_from_options(options) as recognizer:
                     lms = result.hand_landmarks[0]
                     for lndmark in lms:
                         cx, cy = int(w * lndmark.x), int(h * lndmark.y)
-                        cv2.circle(frame, (cx, cy), 6, (0, 255, 0), -1)
+                        cv2.circle(display_frame, (cx, cy), 6, (0, 255, 0), -1)
                     for a, b in LANDMARK_CONNECTIONS:
                         ax, ay = int(w * lms[a].x), int(h * lms[a].y)
                         bx, by = int(w * lms[b].x), int(h * lms[b].y)
-                        cv2.line(frame, (ax, ay), (bx, by), (0, 200, 0), 2)
+                        cv2.line(display_frame, (ax, ay), (bx, by), (0, 200, 0), 2)
 
                 seek_action = None
                 if result.hand_landmarks:
@@ -218,11 +225,11 @@ with GestureRecognizer.create_from_options(options) as recognizer:
                     if action:
                         maybe_publish(action)
 
-            cv2.putText(frame, f"FPS: {measured_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Action: {last_action or 'None'}", (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
-            cv2.putText(frame, f"Gesture: {gesture_label}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
+            cv2.putText(display_frame, f"FPS: {measured_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(display_frame, f"Action: {last_action or 'None'}", (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+            cv2.putText(display_frame, f"Gesture: {gesture_label}", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
             if not args.headless:
-                cv2.imshow(WIN_NAME, frame)
+                cv2.imshow(WIN_NAME, display_frame)
 
             if cv2.waitKey(1) == 27:  # ESC to quit
                 _stop.set()

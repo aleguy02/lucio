@@ -78,7 +78,11 @@ func NewModalities() ModalitiesModel {
 		ModalitiesLog.Println("Could not find the font file! Using default font.")
 		opened = false
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			ModalitiesLog.Printf("failed to close file: %v", err)
+		}
+	}()
 
 	fig := figure.NewFigure("LUC!O", "ogre", true)
 	if opened {

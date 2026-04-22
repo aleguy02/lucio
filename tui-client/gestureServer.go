@@ -12,7 +12,9 @@ import (
 const SOCKET_PATH = "/tmp/spotify-tui.sock"
 
 func startGestureServer(ctx context.Context, ch chan tea.Msg) error {
-	os.RemoveAll(SOCKET_PATH)
+	if err := os.RemoveAll(SOCKET_PATH); err != nil {
+		return err
+	}
 	sock, err := net.Listen("unix", SOCKET_PATH)
 	if err != nil {
 		return err

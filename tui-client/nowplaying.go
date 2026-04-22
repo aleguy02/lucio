@@ -87,7 +87,9 @@ func (m nowPlaying) View() tea.View {
 		case "album":
 			albumName = meta.Value
 		case "duration":
-			fmt.Sscanf(meta.Value, "%d", &duration)
+			if _, err := fmt.Sscanf(meta.Value, "%d", &duration); err != nil {
+				NowPlayingLog.Printf("failed to scan duration: %v", err)
+			}
 		}
 	}
 

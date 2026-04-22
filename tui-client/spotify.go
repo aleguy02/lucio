@@ -20,12 +20,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-var commandsWithArg = map[SpotifyCommand]bool{
-	CmdSeekF:  true,
-	CmdSeekB:  true,
-	CmdSearch: true,
-}
-
 type SpotifyClient struct {
 	client *spotify.Client
 }
@@ -39,7 +33,7 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 	}
 
 	if clientID == "" || clientSecret == "" {
-		return nil, fmt.Errorf("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set\n")
+		return nil, fmt.Errorf("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
 	}
 
 	auth := spotifyauth.New(
@@ -97,7 +91,9 @@ func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*spotify
 		if err := saveToken(tok); err != nil {
 			log.Printf("warning: could not cache token: %v", err)
 		}
-		fmt.Fprintln(w, "Authentication successful! You can close this tab.")
+		if _, err := fmt.Fprintln(w, "Authentication successful! You can close this tab."); err != nil {
+			log.Printf("failed to write authentication success message: %v", err)
+		}
 		clientCh <- spotify.New(auth.Client(r.Context(), tok))
 	})
 
@@ -269,7 +265,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 	if searchResult.Artists != nil {
 		for _, a := range searchResult.Artists.Artists {
 			l := Details{
-				Name: a.SimpleArtist.Name,
+				Name: a.Name,
 				Metadata: []MetaItem{{
 					Label: "followers", Value: strconv.Itoa(int(a.Followers.Count)),
 				}},
@@ -278,7 +274,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 				Type:           searchType,
 				URI:            a.URI,
 				ID:             a.ID,
-				ShortViewItems: []string{a.SimpleArtist.Name},
+				ShortViewItems: []string{a.Name},
 				LongView:       l,
 			})
 		}
@@ -317,18 +313,18 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			artists := strings.Join(artistNames, ", ")
 
 			l := Details{
-				Name: t.SimpleTrack.Name,
+				Name: t.Name,
 				Metadata: []MetaItem{
 					{Label: "artists", Value: artists},
 					{Label: "album", Value: t.Album.Name},
-					{Label: "duration", Value: strconv.Itoa(int(t.SimpleTrack.Duration))},
+					{Label: "duration", Value: strconv.Itoa(int(t.Duration))},
 				},
 			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
 				URI:            t.URI,
 				ID:             t.ID,
-				ShortViewItems: []string{t.SimpleTrack.Name, artists},
+				ShortViewItems: []string{t.Name, artists},
 				LongView:       l,
 			})
 		}
@@ -425,13 +421,13 @@ func (c *SpotifyClient) getPlaybackState() (PlaybackState, error) {
 			Type:           spotify.SearchTypeTrack,
 			URI:            t.URI,
 			ID:             t.ID,
-			ShortViewItems: []string{t.SimpleTrack.Name, artists},
+			ShortViewItems: []string{t.Name, artists},
 			LongView: Details{
-				Name: t.SimpleTrack.Name,
+				Name: t.Name,
 				Metadata: []MetaItem{
 					{Label: "artists", Value: artists},
 					{Label: "album", Value: t.Album.Name},
-					{Label: "duration", Value: strconv.Itoa(int(t.SimpleTrack.Duration))},
+					{Label: "duration", Value: strconv.Itoa(int(t.Duration))},
 				},
 			},
 		},
@@ -440,8 +436,13 @@ func (c *SpotifyClient) getPlaybackState() (PlaybackState, error) {
 
 // PlayTrack starts immediate playback of the given track URI. This is a hack because the PlayOpt function only plays the song then stops playback
 func (c *SpotifyClient) playTrack(id spotify.ID) error {
-	c.client.QueueSong(context.Background(), id)
-	return c.client.Next(context.Background())
+	if err := c.client.QueueSong(context.Background(), id); err != nil {
+		return fmt.Errorf("could not queue song: %w", err)
+	}
+	if err := c.client.Next(context.Background()); err != nil {
+		return fmt.Errorf("could not play song: %w", err)
+	}
+	return nil
 }
 
 func (c *SpotifyClient) playFromContext(uri spotify.URI) error {
