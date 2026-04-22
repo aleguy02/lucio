@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"fmt"
@@ -6,12 +6,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	sp "aleguy02/spotify-tui/internal/spotify"
 )
 
 type nowPlaying struct {
 	width    int
 	height   int
-	playback PlaybackState
+	playback sp.PlaybackState
 }
 
 func NewNowPlaying() nowPlaying {
@@ -27,8 +29,7 @@ func (m nowPlaying) Update(msg tea.Msg) (nowPlaying, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-	case SpotifyPlaybackStateMsg:
-		// NowPlayingLog.Println(msg)  // this is printing actual song data
+	case sp.SpotifyPlaybackStateMsg:
 		m.playback = msg.State
 	}
 	return m, nil
@@ -49,14 +50,8 @@ func progressBar(progress, duration int, width int) string {
 }
 
 var (
-	npContextStyle = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
-	npGenreStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
-	npVisualStyle  = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(lipgloss.Color("#FF00FF")).
-			Width(30).
-			Height(8).
-			Align(lipgloss.Center, lipgloss.Center)
+	npContextStyle  = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
+	npVisualStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(lipgloss.Color("#FF00FF")).Width(30).Height(8).Align(lipgloss.Center, lipgloss.Center)
 	npSongStyle     = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
 	npAlbumStyle    = lipgloss.NewStyle().Foreground(ColorSpotifyGreen)
 	npArtistStyle   = lipgloss.NewStyle().Faint(true).Foreground(ColorMidGray)
@@ -71,7 +66,6 @@ func (m nowPlaying) View() tea.View {
 	}
 
 	t := m.playback.Track
-	// NowPlayingLog.Println(t)  // this is outputting 2026/04/20 01:23:47 [nowPlaying] {0   [] { []}}
 	trackName := "No track playing"
 	albumName := ""
 	artistName := ""

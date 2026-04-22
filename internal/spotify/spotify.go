@@ -1,4 +1,4 @@
-package main
+package spotify
 
 import (
 	"context"
@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	spotify "github.com/zmb3/spotify/v2"
+	zmb "github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
 )
 
 type SpotifyClient struct {
-	client *spotify.Client
+	client *zmb.Client
 }
 
 func NewSpotifyClient() (*SpotifyClient, error) {
@@ -48,7 +48,7 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 
 	if tok, err := loadToken(); err == nil {
 		httpClient := auth.Client(context.Background(), tok)
-		return &SpotifyClient{client: spotify.New(httpClient)}, nil
+		return &SpotifyClient{client: zmb.New(httpClient)}, nil
 	}
 
 	client, err := runOAuthFlow(auth, redirectURI)
@@ -60,7 +60,7 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 
 // runOAuthFlow starts a temporary local HTTP server on the redirect URI port,
 // opens the Spotify auth page in the browser, and waits for the OAuth callback.
-func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*spotify.Client, error) {
+func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Client, error) {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
 		return nil, fmt.Errorf("invalid redirect URI %q: %w", redirectURI, err)
@@ -70,7 +70,7 @@ func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*spotify
 	callbackPath := u.Path
 
 	const state = "spotify-hands-auth"
-	clientCh := make(chan *spotify.Client, 1)
+	clientCh := make(chan *zmb.Client, 1)
 	errCh := make(chan error, 1)
 
 	mux := http.NewServeMux()
@@ -94,7 +94,7 @@ func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*spotify
 		if _, err := fmt.Fprintln(w, "Authentication successful! You can close this tab."); err != nil {
 			log.Printf("failed to write authentication success message: %v", err)
 		}
-		clientCh <- spotify.New(auth.Client(r.Context(), tok))
+		clientCh <- zmb.New(auth.Client(r.Context(), tok))
 	})
 
 	go func() {
@@ -181,10 +181,6 @@ func saveToken(tok *oauth2.Token) error {
 	return os.WriteFile(path, data, 0600)
 }
 
-/*
- * Route validates the incoming action and dispatches it to the appropriate
- * handler. It returns an error if the command or its argument is invalid.
- */
 func (c *SpotifyClient) Route(msg SpotifyActionMsg) error {
 	cmd := SpotifyCommand(strings.ToUpper(string(msg.Command)))
 
@@ -239,14 +235,14 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 
 	subcommand, term, _ := strings.Cut(msg.Arg, " ")
 
-	var searchType spotify.SearchType
+	var searchType zmb.SearchType
 	switch subcommand {
 	case "artist":
-		searchType = spotify.SearchTypeArtist
+		searchType = zmb.SearchTypeArtist
 	case "album":
-		searchType = spotify.SearchTypeAlbum
+		searchType = zmb.SearchTypeAlbum
 	case "track":
-		searchType = spotify.SearchTypeTrack
+		searchType = zmb.SearchTypeTrack
 	default:
 		return nil, fmt.Errorf("unknown search subcommand %q: expected artist, album, or track", subcommand)
 	}
@@ -260,22 +256,20 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 		return nil, err
 	}
 
-	// metadata will be displayed in insertion order in TUI
 	var results []SpotifyItem
 	if searchResult.Artists != nil {
 		for _, a := range searchResult.Artists.Artists {
-			l := Details{
-				Name: a.Name,
-				Metadata: []MetaItem{{
-					Label: "followers", Value: strconv.Itoa(int(a.Followers.Count)),
-				}},
-			}
 			results = append(results, SpotifyItem{
-				Type:           searchType,
-				URI:            a.URI,
-				ID:             a.ID,
+				Type: searchType,
+				URI:  a.URI,
+				ID:   a.ID,
 				ShortViewItems: []string{a.Name},
-				LongView:       l,
+				LongView: Details{
+					Name: a.Name,
+					Metadata: []MetaItem{{
+						Label: "followers", Value: strconv.Itoa(int(a.Followers.Count)),
+					}},
+				},
 			})
 		}
 	}
@@ -286,21 +280,19 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 				artistNames = append(artistNames, artist.Name)
 			}
 			artists := strings.Join(artistNames, ", ")
-
-			l := Details{
-				Name: a.Name,
-				Metadata: []MetaItem{
-					{Label: "artists", Value: artists},
-					{Label: "# tracks", Value: strconv.Itoa(int(a.TotalTracks))},
-					{Label: "released", Value: a.ReleaseDate},
-				},
-			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
 				URI:            a.URI,
 				ID:             a.ID,
 				ShortViewItems: []string{a.Name, artists},
-				LongView:       l,
+				LongView: Details{
+					Name: a.Name,
+					Metadata: []MetaItem{
+						{Label: "artists", Value: artists},
+						{Label: "# tracks", Value: strconv.Itoa(int(a.TotalTracks))},
+						{Label: "released", Value: a.ReleaseDate},
+					},
+				},
 			})
 		}
 	}
@@ -311,21 +303,19 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 				artistNames = append(artistNames, artist.Name)
 			}
 			artists := strings.Join(artistNames, ", ")
-
-			l := Details{
-				Name: t.Name,
-				Metadata: []MetaItem{
-					{Label: "artists", Value: artists},
-					{Label: "album", Value: t.Album.Name},
-					{Label: "duration", Value: strconv.Itoa(int(t.Duration))},
-				},
-			}
 			results = append(results, SpotifyItem{
 				Type:           searchType,
 				URI:            t.URI,
 				ID:             t.ID,
 				ShortViewItems: []string{t.Name, artists},
-				LongView:       l,
+				LongView: Details{
+					Name: t.Name,
+					Metadata: []MetaItem{
+						{Label: "artists", Value: artists},
+						{Label: "album", Value: t.Album.Name},
+						{Label: "duration", Value: strconv.Itoa(int(t.Duration))},
+					},
+				},
 			})
 		}
 	}
@@ -333,7 +323,6 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 	return results, nil
 }
 
-// parseSeconds validates and converts a seconds string argument.
 func parseSeconds(arg string) (int, error) {
 	if strings.TrimSpace(arg) == "" {
 		return 0, fmt.Errorf("seconds argument is required")
@@ -347,8 +336,6 @@ func parseSeconds(arg string) (int, error) {
 	}
 	return s, nil
 }
-
-// --- Spotify Web API handlers ---
 
 func (c *SpotifyClient) play() error {
 	return c.client.Play(context.Background())
@@ -390,15 +377,15 @@ func (c *SpotifyClient) seekBack(s int) error {
 	return c.client.Seek(context.Background(), newPos)
 }
 
-func (c *SpotifyClient) search(query string, t spotify.SearchType) (*spotify.SearchResult, error) {
-	result, err := c.client.Search(context.Background(), query, t, spotify.Limit(7))
+func (c *SpotifyClient) search(query string, t zmb.SearchType) (*zmb.SearchResult, error) {
+	result, err := c.client.Search(context.Background(), query, t, zmb.Limit(7))
 	if err != nil {
 		return nil, fmt.Errorf("could not not perform search: %w", err)
 	}
 	return result, nil
 }
 
-func (c *SpotifyClient) getPlaybackState() (PlaybackState, error) {
+func (c *SpotifyClient) GetPlaybackState() (PlaybackState, error) {
 	result, err := c.client.PlayerCurrentlyPlaying(context.Background())
 	if err != nil {
 		return PlaybackState{}, fmt.Errorf("could not get playback state: %w", err)
@@ -414,11 +401,11 @@ func (c *SpotifyClient) getPlaybackState() (PlaybackState, error) {
 	artists := strings.Join(artistNames, ", ")
 
 	return PlaybackState{
-		Progress:  int(result.Progress), // ms
+		Progress:  int(result.Progress),
 		IsPlaying: result.Playing,
 		Context:   1,
 		Track: SpotifyItem{
-			Type:           spotify.SearchTypeTrack,
+			Type:           zmb.SearchTypeTrack,
 			URI:            t.URI,
 			ID:             t.ID,
 			ShortViewItems: []string{t.Name, artists},
@@ -434,8 +421,8 @@ func (c *SpotifyClient) getPlaybackState() (PlaybackState, error) {
 	}, nil
 }
 
-// PlayTrack starts immediate playback of the given track URI. This is a hack because the PlayOpt function only plays the song then stops playback
-func (c *SpotifyClient) playTrack(id spotify.ID) error {
+// playTrack queues then skips to the song — PlayOpt alone stops after one track.
+func (c *SpotifyClient) playTrack(id zmb.ID) error {
 	if err := c.client.QueueSong(context.Background(), id); err != nil {
 		return fmt.Errorf("could not queue song: %w", err)
 	}
@@ -445,48 +432,17 @@ func (c *SpotifyClient) playTrack(id spotify.ID) error {
 	return nil
 }
 
-func (c *SpotifyClient) playFromContext(uri spotify.URI) error {
-	return c.client.PlayOpt(context.Background(), &spotify.PlayOptions{
+func (c *SpotifyClient) playFromContext(uri zmb.URI) error {
+	return c.client.PlayOpt(context.Background(), &zmb.PlayOptions{
 		PlaybackContext: &uri,
 	})
 }
 
-/*
- * Structs to pass around in frontend 
- */
-type SpotifyItem struct {
-	Type           spotify.SearchType
-	URI            spotify.URI
-	ID             spotify.ID
-	ShortViewItems []string // will be displayed as * separated string
-	LongView       Details
-}
-
-type Details struct {
-	Name     string
-	Metadata []MetaItem // slice will maintain insertion order
-}
-
-type MetaItem struct {
-	Label string
-	Value string
-}
-
-// TODO: this could be extended with device, repeat state, shuffle state
-type PlaybackState struct {
-	Progress	int
-	IsPlaying	bool
-	Context		int // TODO
-	Track		SpotifyItem
-}
-
-// ExecutePlayback dispatches a PlaybackMsg to the appropriate Spotify playback endpoint
-// based on the item type. Add new cases here to support album, artist, and playlist playback.
 func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 	switch msg.Item.Type {
-	case spotify.SearchTypeTrack:
+	case zmb.SearchTypeTrack:
 		return c.playTrack(msg.Item.ID)
-	case spotify.SearchTypeAlbum, spotify.SearchTypeArtist:
+	case zmb.SearchTypeAlbum, zmb.SearchTypeArtist:
 		return c.playFromContext(msg.Item.URI)
 	default:
 		return fmt.Errorf("playback not yet supported for type %v", msg.Item.Type)
@@ -494,5 +450,32 @@ func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 }
 
 func (c *SpotifyClient) QueueSong(msg QueueMsg) error {
-	return c.client.QueueSong(context.Background(), spotify.ID(msg.Id))
+	return c.client.QueueSong(context.Background(), zmb.ID(msg.Id))
+}
+
+// SpotifyItem is the shared representation of a Spotify entity used across the UI.
+type SpotifyItem struct {
+	Type           zmb.SearchType
+	URI            zmb.URI
+	ID             zmb.ID
+	ShortViewItems []string
+	LongView       Details
+}
+
+type Details struct {
+	Name     string
+	Metadata []MetaItem
+}
+
+type MetaItem struct {
+	Label string
+	Value string
+}
+
+// TODO: could be extended with device, repeat state, shuffle state
+type PlaybackState struct {
+	Progress  int
+	IsPlaying bool
+	Context   int // TODO
+	Track     SpotifyItem
 }

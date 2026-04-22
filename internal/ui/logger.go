@@ -1,12 +1,9 @@
-package main
+package ui
 
 import "log"
 
 // ServiceLogger tags every log line with a service name prefix, making
-// log output grep-able by service (e.g. grep '\[gestureServer\]' debug.log).
-//
-// It delegates to the default log package functions so it always writes to
-// whatever output tea.LogToFile (or log.SetOutput) has configured.
+// log output grep-able by service (e.g. grep '\[terminalMode\]' debug.log).
 type ServiceLogger struct{ prefix string }
 
 func (l ServiceLogger) Printf(format string, v ...any) {
@@ -19,7 +16,6 @@ func (l ServiceLogger) Println(v ...any) {
 
 var (
 	TerminalLog   = ServiceLogger{prefix: "terminalMode"}
-	GestureLog    = ServiceLogger{prefix: "gestureServer"}
 	ModalitiesLog = ServiceLogger{prefix: "modalitiesMenu"}
 	NowPlayingLog = ServiceLogger{prefix: "nowPlaying"}
 )

@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"os"
@@ -7,6 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/common-nighthawk/go-figure"
+
+	"aleguy02/spotify-tui/internal/gestures"
 )
 
 // Modality represents a feature or microservice that can be toggled.
@@ -17,7 +19,6 @@ type Modality struct {
 	Enabled     bool
 }
 
-// modalitiesKeyMap defines keybindings for the modalities component.
 type modalitiesKeyMap struct {
 	Left   key.Binding
 	Right  key.Binding
@@ -41,16 +42,13 @@ func defaultModalitiesKeyMap() modalitiesKeyMap {
 	}
 }
 
-// styles
-var (
-	bannerStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#000000ff")).
-		Background(ColorSpotifyGreen).
-		Padding(1, 2).
-		MarginBottom(1).
-		Align(lipgloss.Center)
-)
+var bannerStyle = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(lipgloss.Color("#000000ff")).
+	Background(ColorSpotifyGreen).
+	Padding(1, 2).
+	MarginBottom(1).
+	Align(lipgloss.Center)
 
 type ModalitiesModel struct {
 	Modalities []Modality
@@ -66,30 +64,23 @@ type ModalitiesModel struct {
 
 	width  int
 	height int
-
 	banner string
 }
 
-// TODO: refactor to use a pointer instead? look at https://github.com/bensadeh/circumflex/blob/main/view/list/list.go#L100 for reference
 func NewModalities() ModalitiesModel {
-	opened := true
+	fig := figure.NewFigure("LUC!O", "ogre", true)
 	file, err := os.Open("ANSI_shadow.flf")
 	if err != nil {
 		ModalitiesLog.Println("Could not find the font file! Using default font.")
-		opened = false
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			ModalitiesLog.Printf("failed to close file: %v", err)
-		}
-	}()
-
-	fig := figure.NewFigure("LUC!O", "ogre", true)
-	if opened {
+	} else {
+		defer func() {
+			if err := file.Close(); err != nil {
+				ModalitiesLog.Printf("failed to close file: %v", err)
+			}
+		}()
 		fig = figure.NewFigureWithFont("LUC!O", file, true)
 	}
 
-	// TODO: should this be with the rest of the colors
 	accentGray := lipgloss.Color("#282828")
 
 	return ModalitiesModel{
@@ -99,7 +90,6 @@ func NewModalities() ModalitiesModel {
 			{ID: "agent", Name: "AGENT", Description: "Agentic mode\n", Enabled: false},
 		},
 		Keys: defaultModalitiesKeyMap(),
-		// TODO: why are the styles defined here? I guess it makes it so that you can have different selected styles accross pages
 		SelectedStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder(), true).
 			BorderForeground(ColorSpotifyGreen).
@@ -113,18 +103,11 @@ func NewModalities() ModalitiesModel {
 			Padding(1, 2).
 			Width(25).
 			Height(8),
-		EnabledStyle: lipgloss.NewStyle().
-			Foreground(ColorSpotifyGreen).
-			Bold(true),
-		DisabledStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF4B4B")),
-		TitleStyle: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorWhite),
-		DescStyle: lipgloss.NewStyle().
-			Foreground(ColorMidGray).
-			Faint(true),
-		banner: bannerStyle.Render(fig.String()),
+		EnabledStyle:  lipgloss.NewStyle().Foreground(ColorSpotifyGreen).Bold(true),
+		DisabledStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4B4B")),
+		TitleStyle:    lipgloss.NewStyle().Bold(true).Foreground(ColorWhite),
+		DescStyle:     lipgloss.NewStyle().Foreground(ColorMidGray).Faint(true),
+		banner:        bannerStyle.Render(fig.String()),
 	}
 }
 
@@ -152,7 +135,7 @@ func (m ModalitiesModel) Update(msg tea.Msg) (ModalitiesModel, tea.Cmd) {
 
 			switch m.Modalities[m.Cursor].ID {
 			case "gestures":
-				return m, ToggleGesturesCmd(m.Modalities[m.Cursor].Enabled)
+				return m, gestures.ToggleGesturesCmd(m.Modalities[m.Cursor].Enabled)
 			}
 		}
 	}

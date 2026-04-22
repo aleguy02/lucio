@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"fmt"
@@ -8,10 +8,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	spotify "github.com/zmb3/spotify/v2"
-)
+	zmb "github.com/zmb3/spotify/v2"
 
-// --- styles ---
+	sp "aleguy02/spotify-tui/internal/spotify"
+)
 
 var (
 	searchTitleStyle  = lipgloss.NewStyle().Bold(true).MarginBottom(1)
@@ -21,14 +21,12 @@ var (
 	detailLabelStyle  = lipgloss.NewStyle().Faint(true)
 )
 
-// --- InteractiveSearchResultsModel ---
-
 type searchResultsKeyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Detail key.Binding
-	Select key.Binding
-	Back   key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	Detail    key.Binding
+	Select    key.Binding
+	Back      key.Binding
 	AltSelect key.Binding
 }
 
@@ -42,14 +40,8 @@ func (k searchResultsKeyMap) FullHelp() [][]key.Binding {
 
 func defaultSearchResultsKeyMap() searchResultsKeyMap {
 	return searchResultsKeyMap{
-		Up: key.NewBinding(
-			key.WithKeys("k", "up"),
-			key.WithHelp("k/↑", "up"),
-		),
-		Down: key.NewBinding(
-			key.WithKeys("j", "down"),
-			key.WithHelp("j/↓", "down"),
-		),
+		Up:   key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("k/↑", "up")),
+		Down: key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/↓", "down")),
 		Detail: key.NewBinding(
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "details"),
@@ -70,28 +62,24 @@ func defaultSearchResultsKeyMap() searchResultsKeyMap {
 }
 
 type InteractiveSearchResultsModel struct {
-	items  []SpotifyItem
+	items  []sp.SpotifyItem
 	cursor int
 	Keys   searchResultsKeyMap
 }
 
-func NewInteractiveSearchResultsModel(items []SpotifyItem) InteractiveSearchResultsModel {
-	return InteractiveSearchResultsModel{
-		items: items,
-		Keys:  defaultSearchResultsKeyMap(),
-	}
+func NewInteractiveSearchResultsModel(items []sp.SpotifyItem) InteractiveSearchResultsModel {
+	return InteractiveSearchResultsModel{items: items, Keys: defaultSearchResultsKeyMap()}
 }
 
-// Selected returns the currently highlighted SpotifyItem.
-func (m InteractiveSearchResultsModel) Selected() SpotifyItem {
+func (m InteractiveSearchResultsModel) Selected() sp.SpotifyItem {
 	if len(m.items) == 0 {
-		return SpotifyItem{}
+		return sp.SpotifyItem{}
 	}
 	return m.items[m.cursor]
 }
 
 // Update handles cursor movement. State transitions (ESC, TAB, ENTER) are
-// managed by menu.Update so all FSM logic stays in one place.
+// managed by Menu.Update so all FSM logic stays in one place.
 func (m InteractiveSearchResultsModel) Update(msg tea.Msg) (InteractiveSearchResultsModel, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
@@ -129,48 +117,40 @@ func (m InteractiveSearchResultsModel) View() string {
 	return b.String()
 }
 
-// --- SpotifyItemDetails interface and subtypes ---
-
 // SpotifyItemDetails is the interface all detail screen types must satisfy.
 type SpotifyItemDetails interface {
 	View() string
 	ItemType() string
-	RawItem() SpotifyItem         // used for PlaybackMsg construction
-	relatedItems() []SpotifyItem  // reserved for future graph navigation
-	userStats() map[string]string // reserved for future user analytics
+	RawItem() sp.SpotifyItem
+	relatedItems() []sp.SpotifyItem  // reserved for future graph navigation
+	userStats() map[string]string    // reserved for future user analytics
 }
 
-type TrackDetails struct{ raw SpotifyItem }
+type TrackDetails struct{ raw sp.SpotifyItem }
 
-func (d TrackDetails) ItemType() string             { return "track" }
-func (d TrackDetails) RawItem() SpotifyItem         { return d.raw }
-func (d TrackDetails) relatedItems() []SpotifyItem  { return nil }
-func (d TrackDetails) userStats() map[string]string { return nil }
-func (d TrackDetails) View() string {
-	return renderDetails("[Track Details]", d.raw.LongView)
-}
+func (d TrackDetails) ItemType() string                { return "track" }
+func (d TrackDetails) RawItem() sp.SpotifyItem         { return d.raw }
+func (d TrackDetails) relatedItems() []sp.SpotifyItem  { return nil }
+func (d TrackDetails) userStats() map[string]string    { return nil }
+func (d TrackDetails) View() string                    { return renderDetails("[Track Details]", d.raw.LongView) }
 
-type AlbumDetails struct{ raw SpotifyItem }
+type AlbumDetails struct{ raw sp.SpotifyItem }
 
-func (d AlbumDetails) ItemType() string             { return "album" }
-func (d AlbumDetails) RawItem() SpotifyItem         { return d.raw }
-func (d AlbumDetails) relatedItems() []SpotifyItem  { return nil }
-func (d AlbumDetails) userStats() map[string]string { return nil }
-func (d AlbumDetails) View() string {
-	return renderDetails("[Album Details]", d.raw.LongView)
-}
+func (d AlbumDetails) ItemType() string                { return "album" }
+func (d AlbumDetails) RawItem() sp.SpotifyItem         { return d.raw }
+func (d AlbumDetails) relatedItems() []sp.SpotifyItem  { return nil }
+func (d AlbumDetails) userStats() map[string]string    { return nil }
+func (d AlbumDetails) View() string                    { return renderDetails("[Album Details]", d.raw.LongView) }
 
-type ArtistDetails struct{ raw SpotifyItem }
+type ArtistDetails struct{ raw sp.SpotifyItem }
 
-func (d ArtistDetails) ItemType() string             { return "artist" }
-func (d ArtistDetails) RawItem() SpotifyItem         { return d.raw }
-func (d ArtistDetails) relatedItems() []SpotifyItem  { return nil }
-func (d ArtistDetails) userStats() map[string]string { return nil }
-func (d ArtistDetails) View() string {
-	return renderDetails("[Artist Details]", d.raw.LongView)
-}
+func (d ArtistDetails) ItemType() string               { return "artist" }
+func (d ArtistDetails) RawItem() sp.SpotifyItem        { return d.raw }
+func (d ArtistDetails) relatedItems() []sp.SpotifyItem { return nil }
+func (d ArtistDetails) userStats() map[string]string   { return nil }
+func (d ArtistDetails) View() string                   { return renderDetails("[Artist Details]", d.raw.LongView) }
 
-func renderDetails(header string, d Details) string {
+func renderDetails(header string, d sp.Details) string {
 	var b strings.Builder
 	b.WriteString(detailNameStyle.Render(header))
 	b.WriteString("\n")
@@ -179,15 +159,12 @@ func renderDetails(header string, d Details) string {
 	for _, meta := range d.Metadata {
 		b.WriteString(detailLabelStyle.Render(meta.Label + ": "))
 		if meta.Label == "duration" {
-			
 			ms, err := strconv.Atoi(meta.Value)
 			if err != nil {
 				b.WriteString("could not get duration")
 			} else {
-				MMSS := msToMMSS(ms)
-				b.WriteString(MMSS)
+				b.WriteString(msToMMSS(ms))
 			}
-
 		} else {
 			b.WriteString(meta.Value)
 		}
@@ -196,25 +173,22 @@ func renderDetails(header string, d Details) string {
 	return b.String()
 }
 
-// NewSpotifyItemDetails constructs the correct SpotifyItemDetails subtype from a SpotifyItem.
-func NewSpotifyItemDetails(item SpotifyItem) SpotifyItemDetails {
+func NewSpotifyItemDetails(item sp.SpotifyItem) SpotifyItemDetails {
 	switch item.Type {
-	case spotify.SearchTypeTrack:
+	case zmb.SearchTypeTrack:
 		return TrackDetails{raw: item}
-	case spotify.SearchTypeAlbum:
+	case zmb.SearchTypeAlbum:
 		return AlbumDetails{raw: item}
-	case spotify.SearchTypeArtist:
+	case zmb.SearchTypeArtist:
 		return ArtistDetails{raw: item}
 	default:
 		return TrackDetails{raw: item}
 	}
 }
 
-// --- SpotifyItemModel ---
-
 type spotifyItemKeyMap struct {
-	Select key.Binding
-	Back   key.Binding
+	Select    key.Binding
+	Back      key.Binding
 	AltSelect key.Binding
 }
 
@@ -248,7 +222,7 @@ type SpotifyItemModel struct {
 	Keys    spotifyItemKeyMap
 }
 
-func NewSpotifyItemModel(item SpotifyItem) SpotifyItemModel {
+func NewSpotifyItemModel(item sp.SpotifyItem) SpotifyItemModel {
 	return SpotifyItemModel{details: NewSpotifyItemDetails(item), Keys: defaultSpotifyItemKeyMap()}
 }
 

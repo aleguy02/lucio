@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"charm.land/bubbles/v2/key"
@@ -81,22 +81,14 @@ func (m guide) Update(msg tea.Msg) (guide, tea.Cmd) {
 }
 
 var (
-	guideTabActiveStyle = lipgloss.NewStyle().
-				Foreground(ColorSpotifyGreen).
-		// Underline(true).
-		Padding(0, 2)
-	guideTabStyle = lipgloss.NewStyle().
-			Foreground(ColorDarkGray).
-			Padding(0, 2)
-	// guideDividerStyle = lipgloss.NewStyle().Foreground(ColorDarkGray)
-	guideCmdStyle   = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
-	guideDescStyle  = lipgloss.NewStyle().Foreground(ColorMidGray)
-	guideFaintStyle = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
-	// guideDivider      = guideDividerStyle.Render(strings.Repeat("─", 60))
+	guideTabActiveStyle = lipgloss.NewStyle().Foreground(ColorSpotifyGreen).Padding(0, 2)
+	guideTabStyle       = lipgloss.NewStyle().Foreground(ColorDarkGray).Padding(0, 2)
+	guideCmdStyle       = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
+	guideDescStyle      = lipgloss.NewStyle().Foreground(ColorMidGray)
+	guideFaintStyle     = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
 )
 
 func (m guide) View() tea.View {
-	// Tab bar
 	var tabs []string
 	for i, label := range helpSectionLabels {
 		if helpSection(i) == m.section {
@@ -107,12 +99,7 @@ func (m guide) View() tea.View {
 	}
 	tabBar := lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
 
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		tabBar,
-		// guideDivider,
-		"",
-		m.sectionContent(),
-	)
+	content := lipgloss.JoinVertical(lipgloss.Left, tabBar, "", m.sectionContent())
 
 	var placed string
 	if m.width > 0 && m.height > 0 {
