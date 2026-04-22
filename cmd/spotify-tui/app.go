@@ -69,9 +69,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				gestures.WaitForGestureCmd(m.gestureChan),
 			)
 		}
-		if err := m.spotifyClient.Route(msg); err != nil {
+		result, err := m.spotifyClient.Route(msg)
+		if err != nil {
 			errMsg := sp.SpotifyRouteErrorMsg(err.Error())
 			return m, tea.Batch(func() tea.Msg { return errMsg }, gestures.WaitForGestureCmd(m.gestureChan))
+		}
+		if result != "" {
+			return m, tea.Batch(
+				func() tea.Msg { return sp.DevicesResultMsg(result) },
+				gestures.WaitForGestureCmd(m.gestureChan),
+			)
 		}
 		return m, gestures.WaitForGestureCmd(m.gestureChan)
 

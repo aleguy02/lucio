@@ -127,6 +127,8 @@ func (m guide) sectionContent() string {
 			{"search album <query>", "Search for an album"},
 			{"search track <query>", "Search for a track"},
 			{"details", "Open details for current song"},
+			{"devices list", "List available playback devices"},
+			{"devices select <id>", "Transfer playback to device"},
 			{"theme [default|minimalist|vibes]", "Set visual theme"},
 			{"help", "Open help"},
 		}

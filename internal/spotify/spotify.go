@@ -181,50 +181,69 @@ func saveToken(tok *oauth2.Token) error {
 	return os.WriteFile(path, data, 0600)
 }
 
-func (c *SpotifyClient) Route(msg SpotifyActionMsg) error {
+// Route dispatches a SpotifyActionMsg to the appropriate client method.
+// It returns an optional result string (non-empty for commands that surface data,
+// e.g. "devices list") and an error.
+func (c *SpotifyClient) Route(msg SpotifyActionMsg) (string, error) {
 	cmd := SpotifyCommand(strings.ToUpper(string(msg.Command)))
 
 	switch cmd {
 	case CmdPlay:
 		if msg.Arg != "" {
-			return fmt.Errorf("PLAY takes no argument, got %q", msg.Arg)
+			return "", fmt.Errorf("PLAY takes no argument, got %q", msg.Arg)
 		}
-		return c.play()
+		return "", c.play()
 
 	case CmdPause:
 		if msg.Arg != "" {
-			return fmt.Errorf("PAUSE takes no argument, got %q", msg.Arg)
+			return "", fmt.Errorf("PAUSE takes no argument, got %q", msg.Arg)
 		}
-		return c.pause()
+		return "", c.pause()
 
 	case CmdSkipF:
 		if msg.Arg != "" {
-			return fmt.Errorf("SKIPF takes no argument, got %q", msg.Arg)
+			return "", fmt.Errorf("SKIPF takes no argument, got %q", msg.Arg)
 		}
-		return c.skipForward()
+		return "", c.skipForward()
 
 	case CmdSkipB:
 		if msg.Arg != "" {
-			return fmt.Errorf("SKIPB takes no argument, got %q", msg.Arg)
+			return "", fmt.Errorf("SKIPB takes no argument, got %q", msg.Arg)
 		}
-		return c.skipBack()
+		return "", c.skipBack()
 
 	case CmdSeekF:
 		s, err := parseSeconds(msg.Arg)
 		if err != nil {
-			return fmt.Errorf("SEEKF: %w", err)
+			return "", fmt.Errorf("SEEKF: %w", err)
 		}
-		return c.seekForward(s)
+		return "", c.seekForward(s)
 
 	case CmdSeekB:
 		s, err := parseSeconds(msg.Arg)
 		if err != nil {
-			return fmt.Errorf("SEEKB: %w", err)
+			return "", fmt.Errorf("SEEKB: %w", err)
 		}
-		return c.seekBack(s)
+		return "", c.seekBack(s)
+
+	case CmdDevices:
+		sub, id, _ := strings.Cut(strings.TrimSpace(msg.Arg), " ")
+		switch strings.ToLower(strings.TrimSpace(sub)) {
+		case "list":
+			names, err := c.GetDeviceNames()
+			return names, err
+		case "select":
+			id = strings.TrimSpace(id)
+			if id == "" {
+				return "", fmt.Errorf("DEVICES SELECT requires a device ID")
+			}
+			return "", c.selectDevice(id)
+		default:
+			return "", fmt.Errorf("unknown DEVICES subcommand %q: expected list or select", sub)
+		}
 
 	default:
-		return fmt.Errorf("unknown command %q", msg.Command)
+		return "", fmt.Errorf("unknown command %q", msg.Command)
 	}
 }
 
@@ -260,9 +279,9 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 	if searchResult.Artists != nil {
 		for _, a := range searchResult.Artists.Artists {
 			results = append(results, SpotifyItem{
-				Type: searchType,
-				URI:  a.URI,
-				ID:   a.ID,
+				Type:           searchType,
+				URI:            a.URI,
+				ID:             a.ID,
 				ShortViewItems: []string{a.Name},
 				LongView: Details{
 					Name: a.Name,
@@ -383,6 +402,42 @@ func (c *SpotifyClient) search(query string, t zmb.SearchType) (*zmb.SearchResul
 		return nil, fmt.Errorf("could not not perform search: %w", err)
 	}
 	return result, nil
+}
+
+func (c *SpotifyClient) getDevices() ([]zmb.PlayerDevice, error) {
+	devices, err := c.client.PlayerDevices(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("could not get devices: %w", err)
+	}
+	return devices, nil
+}
+
+func (c *SpotifyClient) selectDevice(id string) error {
+	if err := c.client.TransferPlayback(context.Background(), zmb.ID(id), true); err != nil {
+		return fmt.Errorf("could not transfer playback to device %q: %w", id, err)
+	}
+	return nil
+}
+
+// GetDeviceNames returns a comma-separated list of available Spotify devices,
+// marking the currently active one with "(active)".
+func (c *SpotifyClient) GetDeviceNames() (string, error) {
+	devices, err := c.getDevices()
+	if err != nil {
+		return "", err
+	}
+	if len(devices) == 0 {
+		return "no devices available", nil
+	}
+	names := make([]string, 0, len(devices))
+	for _, d := range devices {
+		name := d.Name + " [" + string(d.ID) + "]"
+		if d.Active {
+			name += " (active)"
+		}
+		names = append(names, name)
+	}
+	return strings.Join(names, ", "), nil
 }
 
 func (c *SpotifyClient) GetPlaybackState() (PlaybackState, error) {

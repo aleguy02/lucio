@@ -10,7 +10,6 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-
 	"aleguy02/spotify-tui/internal/gestures"
 	sp "aleguy02/spotify-tui/internal/spotify"
 )
@@ -164,6 +163,11 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.modalitiesList.Modalities[0].Enabled = false
 		return m, nil
 
+	case sp.DevicesResultMsg:
+		m.successAlert = string(msg)
+		m.alert = ""
+		return m, nil
+
 	case sp.SearchResultsMsg:
 		m.searchResults = NewInteractiveSearchResultsModel([]sp.SpotifyItem(msg))
 		m.state = searchResultsMode
@@ -173,6 +177,12 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nowPlaying, _ = m.nowPlaying.Update(msg)
 		return m, nil
 
+	case tea.PasteMsg:
+		if m.state == terminalMode {
+			m.textInput, cmd = m.textInput.Update(msg)
+		}
+		return m, cmd
+
 	case tea.KeyPressMsg:
 		if key.Matches(msg, m.menuKeys.Terminal) &&
 			m.state != searchResultsMode &&
@@ -180,6 +190,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state != helpMode {
 			m.state = terminalMode
 			m.alert = ""
+			m.successAlert = ""
 			m.textInput.Focus()
 			return m, nil
 		}
@@ -337,6 +348,13 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput, cmd = m.textInput.Update(msg)
 			}
 		}
+
+	// Forward unrecognized messages to textInput when in terminal mode so that
+	// textinput-internal types (e.g. pasteMsg from its ctrl+v Paste command) are handled.
+	default:
+		if m.state == terminalMode {
+			m.textInput, cmd = m.textInput.Update(msg)
+		}
 	}
 
 	return m, cmd
@@ -394,6 +412,12 @@ func (m Menu) bottomBar() string {
 		if m.alert != "" {
 			return lipgloss.JoinVertical(lipgloss.Left,
 				alertStyle.Render("! "+m.alert),
+				m.help.View(m.menuKeys),
+			)
+		}
+		if m.successAlert != "" {
+			return lipgloss.JoinVertical(lipgloss.Left,
+				successAlertStyle.Render("+ "+m.successAlert),
 				m.help.View(m.menuKeys),
 			)
 		}

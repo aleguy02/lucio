@@ -5,18 +5,19 @@ import tea "charm.land/bubbletea/v2"
 type SpotifyCommand string
 
 const (
-	CmdPlay   SpotifyCommand = "PLAY"
-	CmdPause  SpotifyCommand = "PAUSE"
-	CmdSkipF  SpotifyCommand = "SKIPF"
-	CmdSkipB  SpotifyCommand = "SKIPB"
-	CmdSeekF  SpotifyCommand = "SEEKF"
-	CmdSeekB  SpotifyCommand = "SEEKB"
-	CmdSearch SpotifyCommand = "SEARCH"
+	CmdPlay    SpotifyCommand = "PLAY"
+	CmdPause   SpotifyCommand = "PAUSE"
+	CmdSkipF   SpotifyCommand = "SKIPF"
+	CmdSkipB   SpotifyCommand = "SKIPB"
+	CmdSeekF   SpotifyCommand = "SEEKF"
+	CmdSeekB   SpotifyCommand = "SEEKB"
+	CmdSearch  SpotifyCommand = "SEARCH"
+	CmdDevices SpotifyCommand = "DEVICES"
 )
 
 var validSpotifyCommands = map[SpotifyCommand]bool{
 	CmdPlay: true, CmdPause: true, CmdSkipF: true, CmdSkipB: true,
-	CmdSeekF: true, CmdSeekB: true, CmdSearch: true,
+	CmdSeekF: true, CmdSeekB: true, CmdSearch: true, CmdDevices: true,
 }
 
 func IsValidSpotifyCommand(cmd SpotifyCommand) bool {
@@ -53,3 +54,6 @@ type QueueMsg struct {
 }
 
 type QueueSuccessMsg string
+
+// DevicesResultMsg carries the comma-separated list of available Spotify devices.
+type DevicesResultMsg string
