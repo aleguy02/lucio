@@ -78,6 +78,7 @@ type Menu struct {
 	successAlert   string
 	searchResults  InteractiveSearchResultsModel
 	spotifyItem    SpotifyItemModel
+	spotifyItemPrev menuState
 
 	currentTab tabIndex
 	nowPlaying nowPlaying
@@ -205,6 +206,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.alert = ""
 			case key.Matches(msg, m.searchResults.Keys.Detail):
 				m.spotifyItem = NewSpotifyItemModel(m.searchResults.Selected())
+				m.spotifyItemPrev = searchResultsMode
 				m.state = spotifyItemMode
 			case key.Matches(msg, m.searchResults.Keys.Select):
 				item := m.searchResults.Selected()
@@ -230,7 +232,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case spotifyItemMode:
 			switch {
 			case key.Matches(msg, m.spotifyItem.Keys.Back):
-				m.state = searchResultsMode
+				m.state = m.spotifyItemPrev
 			case key.Matches(msg, m.spotifyItem.Keys.Select):
 				if m.spotifyItem.details != nil {
 					item := m.spotifyItem.details.RawItem()
@@ -291,11 +293,14 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, m.guide.Init()
 
 				case "details":
-					if m.spotifyItem.details != nil {
-						m.state = spotifyItemMode
-					} else {
-						m.alert = "no item selected"
+					track := m.nowPlaying.playback.Track
+					if track.ID == "" {
+						m.alert = "no track currently playing"
+						return m, nil
 					}
+					m.spotifyItem = NewSpotifyItemModel(track)
+					m.spotifyItemPrev = menuMode
+					m.state = spotifyItemMode
 					return m, nil
 
 				case "theme":
