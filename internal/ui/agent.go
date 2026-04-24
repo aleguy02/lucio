@@ -232,7 +232,26 @@ func (t agentTabModel) View() string {
 
 	// Width/Height set the outer dimensions (including border) in lipgloss v2
 	chatFrame := agentFrameStyle.Width(halfW).Height(t.height).Render(t.chat.View())
-	dataFrame := dataFrameStyle.Width(rightW).Height(t.height).Render("")
+
+	// Center the sprite inside the data frame's inner content area (border subtracts 2 each axis).
+	innerW := max(0, rightW-2)
+	innerH := max(0, t.height-2)
+	placed := lipgloss.Place(innerW, innerH, lipgloss.Center, lipgloss.Center, dataFrameSprite())
+	dataFrame := dataFrameStyle.Width(rightW).Height(t.height).Render(placed)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, chatFrame, dataFrame)
+}
+
+// dataFrameSprite returns the 4-row ANSI sprite shown in the data frame.
+// To color individual rows, wrap each row with a lipgloss style before joining, e.g.:
+//
+//	row1 = lipgloss.NewStyle().Foreground(lipgloss.Color("#RRGGBB")).Render(row1)
+func dataFrameSprite() string {
+	row1 := "   ▄▄░▄▄▒"
+	row2 := " ██████▌"
+	row3 := "▐██████▌"
+	row4 := " ▀▀▀▀▀▀"
+
+	// TODO: add colors
+	return strings.Join([]string{row1, row2, row3, row4}, "\n")
 }
