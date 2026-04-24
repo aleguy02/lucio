@@ -1,0 +1,238 @@
+package ui
+
+import (
+	"strings"
+
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+)
+
+// MessageSender identifies the author of a chat message.
+type MessageSender int
+
+const (
+	SenderUser  MessageSender = iota
+	SenderAgent
+)
+
+// Message is the base chat unit. User messages are bare text (the "bare" variant).
+// SenderAgent is scaffolded for extension with tool-call UI in the future.
+type Message struct {
+	Sender  MessageSender
+	Content string
+	// Future: ToolResults []AgentToolResult
+}
+
+const maxChatMessages = 15
+
+type agentChatKeyMap struct {
+	ScrollUp   key.Binding
+	ScrollDown key.Binding
+	Send       key.Binding
+}
+
+func (k agentChatKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Send, k.ScrollUp}
+}
+
+func (k agentChatKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{k.Send, k.ScrollUp, k.ScrollDown}}
+}
+
+func defaultAgentChatKeyMap() agentChatKeyMap {
+	return agentChatKeyMap{
+		ScrollUp: key.NewBinding(
+			key.WithKeys("up"),
+			key.WithHelp("up", "scroll up"),
+		),
+		ScrollDown: key.NewBinding(
+			key.WithKeys("down"),
+			key.WithHelp("down", "scroll down"),
+		),
+		Send: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "send"),
+		),
+	}
+}
+
+var (
+	agentFrameStyle = lipgloss.NewStyle().Border(lipgloss.HiddenBorder()) 
+	dataFrameStyle = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(ColorWhite)
+
+	chatInputBoxStyle = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(ColorDarkGray).
+				Padding(0, 1)
+
+	userMsgLabelStyle  = lipgloss.NewStyle().Foreground(ColorMidGray).Faint(true)
+	userMsgTextStyle   = lipgloss.NewStyle().Foreground(ColorLightGrey)
+	agentMsgLabelStyle = lipgloss.NewStyle().Foreground(ColorSpotifyGreen).Bold(true)
+	agentMsgTextStyle  = lipgloss.NewStyle().Foreground(ColorWhite)
+)
+
+// agentChatModel is the left frame: scrollable message history + text input.
+type agentChatModel struct {
+	messages []Message
+	viewport viewport.Model
+	input    textinput.Model
+	keys     agentChatKeyMap
+	width    int
+	height   int
+}
+
+func newAgentChatModel() agentChatModel {
+	ti := textinput.New()
+	// TODO: add bank of random placeholders like this
+	ti.Placeholder = "hey lucio, play my favorite song..."
+	ti.SetStyles(ti.Styles())
+	ti.Focus()
+
+	vp := viewport.New()
+	vp.SoftWrap = true
+
+	return agentChatModel{
+		input:    ti,
+		viewport: vp,
+		keys:     defaultAgentChatKeyMap(),
+	}
+}
+
+// chatInputBoxHeight = 1 text line + 2 border lines (top + bottom).
+const chatInputBoxHeight = 3
+
+func (c *agentChatModel) resize() {
+	vpH := max(1, c.height-chatInputBoxHeight)
+	c.viewport.SetHeight(vpH)
+	c.viewport.SetWidth(c.width)
+	// outer width is c.width; border(-2) and padding(-2) give content width of c.width-4
+	c.input.SetWidth(max(1, c.width-4))
+	c.viewport.SetContent(c.renderMessages())
+}
+
+func (c agentChatModel) renderMessages() string {
+	if len(c.messages) == 0 {
+		return ""
+	}
+	lines := make([]string, len(c.messages))
+	for i, msg := range c.messages {
+		lines[i] = renderMessage(msg)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderMessage renders a single message.
+// User messages are "bare": plain label + text.
+// Agent messages share the same structure but use distinct styling and are
+// designed to be extended (e.g. tool result blocks below the content line).
+func renderMessage(msg Message) string {
+	switch msg.Sender {
+	case SenderAgent:
+		label := agentMsgLabelStyle.Render("agent")
+		return label + "  " + agentMsgTextStyle.Render(msg.Content)
+	default:
+		label := userMsgLabelStyle.Render("you")
+		return label + "\n" + userMsgTextStyle.Render(msg.Content)
+	}
+}
+
+func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		c.width = msg.Width
+		c.height = msg.Height
+		c.resize()
+		return c, nil
+
+	case tea.PasteMsg:
+		c.input, cmd = c.input.Update(msg)
+		return c, cmd
+
+	case tea.KeyPressMsg:
+		switch {
+		case key.Matches(msg, c.keys.Send):
+			text := strings.TrimSpace(c.input.Value())
+			if text == "" {
+				return c, nil
+			}
+			c.messages = append(c.messages, Message{Sender: SenderUser, Content: text})
+			if len(c.messages) > maxChatMessages {
+				c.messages = c.messages[len(c.messages)-maxChatMessages:]
+			}
+			c.input.SetValue("")
+			c.viewport.SetContent(c.renderMessages())
+			c.viewport.GotoBottom()
+			return c, nil
+
+		case key.Matches(msg, c.keys.ScrollUp), key.Matches(msg, c.keys.ScrollDown):
+			c.viewport, cmd = c.viewport.Update(msg)
+			return c, cmd
+
+		default:
+			c.input, cmd = c.input.Update(msg)
+			return c, cmd
+		}
+	}
+
+	return c, nil
+}
+
+func (c agentChatModel) View() string {
+	// outer width = c.width; input box border+padding account for the -4
+	inputBox := chatInputBoxStyle.Width(c.width).Render(c.input.View())
+	return lipgloss.JoinVertical(lipgloss.Left,
+		c.viewport.View(),
+		inputBox,
+	)
+}
+
+// agentTabModel is the full Agent tab: chat frame on the left, empty data frame on the right.
+type agentTabModel struct {
+	chat   agentChatModel
+	width  int
+	height int
+}
+
+func newAgentTabModel() agentTabModel {
+	return agentTabModel{chat: newAgentChatModel()}
+}
+
+func (t agentTabModel) Update(msg tea.Msg) (agentTabModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		t.width = msg.Width
+		t.height = msg.Height
+		halfW := msg.Width / 2
+		// pass the frame's inner content dimensions to the chat model
+		chatMsg := tea.WindowSizeMsg{
+			Width:  max(1, halfW-2),      // frame border is 1 each side
+			Height: max(1, msg.Height-2), // frame border is 1 top and bottom
+		}
+		var cmd tea.Cmd
+		t.chat, cmd = t.chat.Update(chatMsg)
+		return t, cmd
+
+	case tea.KeyPressMsg, tea.PasteMsg:
+		var cmd tea.Cmd
+		t.chat, cmd = t.chat.Update(msg)
+		return t, cmd
+	}
+
+	return t, nil
+}
+
+func (t agentTabModel) View() string {
+	halfW := t.width / 2
+	rightW := t.width - halfW
+
+	// Width/Height set the outer dimensions (including border) in lipgloss v2
+	chatFrame := agentFrameStyle.Width(halfW).Height(t.height).Render(t.chat.View())
+	dataFrame := dataFrameStyle.Width(rightW).Height(t.height).Render("")
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, chatFrame, dataFrame)
+}

@@ -10,10 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"aleguy02/spotify-tui/internal/gestures"
 	sp "aleguy02/spotify-tui/internal/spotify"
 	"aleguy02/spotify-tui/internal/ui"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // Paths to the gesture client and its Python interpreter, relative to CWD
@@ -26,7 +27,7 @@ const (
 type PSTickMsg string
 
 func doTick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Second * 3600, func(t time.Time) tea.Msg {
 		return PSTickMsg("hi")
 	})
 }
@@ -164,7 +165,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		case "q":
-			if activeMenu, ok := m.views[m.active].(ui.Menu); ok && activeMenu.IsInTerminalMode() {
+			if activeMenu, ok := m.views[m.active].(ui.Menu); ok && (activeMenu.IsInTerminalMode() || activeMenu.IsOnAgentTab()) {
 				break
 			}
 			m.stopGestureClient()

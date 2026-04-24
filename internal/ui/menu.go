@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	"aleguy02/spotify-tui/internal/gestures"
+	sp "aleguy02/spotify-tui/internal/spotify"
+
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"aleguy02/spotify-tui/internal/gestures"
-	sp "aleguy02/spotify-tui/internal/spotify"
 )
 
 type menuState int
@@ -29,6 +30,7 @@ type tabIndex int
 const (
 	tabModalities tabIndex = iota
 	tabNowPlaying
+	tabAgent
 )
 
 type menuModeKeyMap struct {
@@ -82,6 +84,7 @@ type Menu struct {
 	currentTab tabIndex
 	nowPlaying nowPlaying
 	guide      guide
+	agentTab   agentTabModel
 	theme      Theme
 	width      int
 	height     int
@@ -114,6 +117,7 @@ func NewMenu() Menu {
 		currentTab:     tabModalities,
 		nowPlaying:     NewNowPlaying(),
 		guide:          NewGuide(),
+		agentTab:       newAgentTabModel(),
 		theme:          ThemeDefault,
 	}
 }
@@ -121,6 +125,13 @@ func NewMenu() Menu {
 // IsInTerminalMode reports whether the terminal command input is currently active.
 func (m Menu) IsInTerminalMode() bool {
 	return m.state == terminalMode
+}
+
+// IsOnAgentTab reports whether the agent chat tab is currently active.
+// Used by the root model to suppress global key bindings (e.g. 'q') that
+// conflict with chat input.
+func (m Menu) IsOnAgentTab() bool {
+	return m.state == menuMode && m.currentTab == tabAgent
 }
 
 func (m Menu) Init() tea.Cmd {
@@ -143,6 +154,9 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nowPlaying, _ = m.nowPlaying.Update(msg)
 		newGuide, _ := m.guide.Update(msg)
 		m.guide = newGuide
+		// Agent tab gets the content-area height (terminal height minus the 1-line help bar).
+		agentMsg := tea.WindowSizeMsg{Width: msg.Width, Height: max(1, msg.Height-1)}
+		m.agentTab, _ = m.agentTab.Update(agentMsg)
 		return m, nil
 
 	case backToMenuMsg:
@@ -180,6 +194,8 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		if m.state == terminalMode {
 			m.textInput, cmd = m.textInput.Update(msg)
+		} else if m.currentTab == tabAgent && m.state == menuMode {
+			m.agentTab, cmd = m.agentTab.Update(msg)
 		}
 		return m, cmd
 
@@ -187,7 +203,8 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key.Matches(msg, m.menuKeys.Terminal) &&
 			m.state != searchResultsMode &&
 			m.state != spotifyItemMode &&
-			m.state != helpMode {
+			m.state != helpMode &&
+			(m.currentTab != tabAgent || m.state != menuMode) {
 			m.state = terminalMode
 			m.alert = ""
 			m.successAlert = ""
@@ -199,14 +216,18 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case menuMode:
 			switch {
 			case key.Matches(msg, m.menuKeys.TabNext):
-				m.currentTab = (m.currentTab + 1) % 2
+				// TODO: the number of tabs (3) is hardcoded which is bad. >:(
+				m.currentTab = (m.currentTab + 1) % 3
 				return m, nil
 			case key.Matches(msg, m.menuKeys.TabPrev):
-				m.currentTab = (m.currentTab + 1) % 2
+				m.currentTab = (m.currentTab + 2) % 3
 				return m, nil
 			}
-			if m.currentTab == tabModalities {
+			switch m.currentTab {
+			case tabModalities:
 				m.modalitiesList, cmd = m.modalitiesList.Update(msg)
+			case tabAgent:
+				m.agentTab, cmd = m.agentTab.Update(msg)
 			}
 
 		case searchResultsMode:
@@ -384,6 +405,15 @@ func (m Menu) View() tea.View {
 		return v
 	}
 
+	// Agent tab fills the content area without center-placement.
+	if m.currentTab == tabAgent {
+		bottomBar := m.bottomBar()
+		composed := lipgloss.JoinVertical(lipgloss.Left, m.agentTab.View(), bottomBar)
+		v := tea.NewView(composed)
+		v.AltScreen = true
+		return v
+	}
+
 	tabContent := m.activeTabContent()
 	bottomBar := m.bottomBar()
 	return m.renderLayout(tabContent, bottomBar)
@@ -399,6 +429,14 @@ func (m Menu) activeTabContent() string {
 }
 
 func (m Menu) bottomBar() string {
+	if m.currentTab == tabAgent && m.state == menuMode {
+		helpBar := m.help.View(m.agentTab.chat.keys)
+		if m.alert != "" {
+			return lipgloss.JoinVertical(lipgloss.Left, alertStyle.Render("! "+m.alert), helpBar)
+		}
+		return helpBar
+	}
+
 	switch m.state {
 	case terminalMode:
 		var lines []string
