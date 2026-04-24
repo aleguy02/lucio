@@ -1,0 +1,199 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"iter"
+	"log"
+	"os"
+
+	"google.golang.org/adk/agent"
+	"google.golang.org/adk/agent/llmagent"
+	"google.golang.org/adk/cmd/launcher"
+	"google.golang.org/adk/cmd/launcher/full"
+	"google.golang.org/adk/model"
+	"google.golang.org/genai"
+
+	"net/http"
+	"net/url"
+
+	ollama "github.com/ollama/ollama/api"
+)
+
+var fileLog *log.Logger
+
+func init() {
+	f, err := os.OpenFile("agent.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalf("failed to open log file: %v", err)
+	}
+	fileLog = log.New(f, "", log.LstdFlags)
+}
+
+type myLLM struct {
+	client   *ollama.Client
+	modelStr string
+	name     string
+}
+
+func NewOllamaModel(modelName string, urlStr string) (*myLLM, error) {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse url: %w", err)
+	}
+
+	var client *ollama.Client
+	if urlStr != "" {
+		c := &http.Client{}
+		client = ollama.NewClient(u, c)
+	} else {
+		client, err = ollama.ClientFromEnvironment()
+		if err != nil {
+			return nil, fmt.Errorf("failed create ollama client from environment: %w", err)
+		}
+	}
+
+	return &myLLM{
+		client:   client,
+		modelStr: modelName,
+		name:     modelName,
+	}, nil
+}
+
+func (m *myLLM) Name() string {
+	return m.name
+}
+
+func (m *myLLM) GenerateContent(ctx context.Context, req *model.LLMRequest, stream bool) iter.Seq2[*model.LLMResponse, error] {
+	// TODO
+	if !stream {
+		panic("whoopsy fucking daisy! only stream is supported")
+	}
+	return m.generateStream(ctx, req)
+}
+
+type callbackRes struct {
+	res model.LLMResponse
+	err error
+}
+
+func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
+	return func(yield func(*model.LLMResponse, error) bool) {
+		ch := make(chan callbackRes)
+
+		msgs := make([]ollama.Message, 0, len(req.Contents))
+		for _, c := range req.Contents {
+			role := c.Role
+			if role == "model" {
+				role = "assistant"
+			}
+			var text string
+			for _, p := range c.Parts {
+				text += p.Text
+			}
+			msgs = append(msgs, ollama.Message{Role: role, Content: text})
+		}
+
+		// reinject system prompt into every interaction. It isn't part of the messages
+		if req.Config != nil && req.Config.SystemInstruction != nil {
+			var systemText string
+			for _, p := range req.Config.SystemInstruction.Parts {
+				systemText += p.Text
+			}
+
+			// TODO: it might be guaranteed that systemText exists since I'm coding this. I'll come back to it
+			if systemText != "" {
+				msgs = append([]ollama.Message{{Role: "system", Content: systemText}}, msgs...)
+			}
+		}
+
+		if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
+			fileLog.Printf("outgoing messages:\n%s", b)
+		}
+
+		stream := true
+		oReq := &ollama.ChatRequest{
+			Model:    req.Model,
+			Messages: msgs,
+			Think: &ollama.ThinkValue{
+				Value: true,
+			},
+			Stream: &stream,
+		}
+
+		// Convert message content
+		// Convert tool calls
+		// Convert usage metadata
+		// pass messages to a channel from inside the respFunc, which is called for every streamed response?
+		respFunc := func(resp ollama.ChatResponse) error {
+			part := &genai.Part{Text: resp.Message.Content}
+
+			res := model.LLMResponse{
+				Content: &genai.Content{
+					Parts: []*genai.Part{part},
+					Role: "model",
+				},
+				Partial:      !resp.Done,
+				TurnComplete: resp.Done,
+			}
+			
+			ch <- callbackRes{
+				res: res,
+				err: nil,
+			}
+
+			return nil
+		}
+		go func() {
+			if err := m.client.Chat(ctx, oReq, respFunc); err != nil {
+				ch <- callbackRes{err: err}
+			}
+			close(ch)
+		}()
+
+		for {
+			res, ok := <-ch
+			if !ok {
+				break
+			}
+			if res.err != nil {
+				yield(nil, res.err)
+				return
+			}
+			if !yield(&res.res, res.err) {
+				return
+			}
+		}
+	}
+
+}
+
+func main() {
+	// use NewOllamaModel to init model
+	model, err := NewOllamaModel("gemma4:e2b", "")
+	if err != nil {
+		log.Fatalf("Failed to create model: %v", err)
+	}
+
+	timeAgent, err := llmagent.New(llmagent.Config{
+		Name:        "hello_world_agent",
+		// Description: "",
+		Model:       model,
+		Instruction: "",
+		// Tools: []tool.Tool{
+		// },
+	})
+	if err != nil {
+		log.Fatalf("Failed to create agent: %v", err)
+	}
+
+	config := &launcher.Config{
+		AgentLoader: agent.NewSingleLoader(timeAgent),
+	}
+
+	l := full.NewLauncher()
+	if err = l.Execute(context.Background(), config, os.Args[1:]); err != nil {
+		log.Fatalf("Run failed: %v\n\n%s", err, l.CommandLineSyntax())
+	}
+}

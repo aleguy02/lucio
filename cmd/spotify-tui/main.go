@@ -5,8 +5,9 @@ import (
 	"log"
 	"os"
 
-	tea "charm.land/bubbletea/v2"
 	"aleguy02/spotify-tui/internal/spotify"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 func main() {
@@ -25,8 +26,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Spotify setup failed: ", err)
 	}
+	
+	// read yaml config to set up agent
 
-	p := tea.NewProgram(newModel(client))
+	p := tea.NewProgram(newModel(client))  // pass agent instance into the program
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
