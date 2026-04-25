@@ -74,19 +74,20 @@ var (
 	agentMsgTextStyle  = lipgloss.NewStyle().Foreground(ColorWhite)
 )
 
-// agentChatModel is the left frame: scrollable message history + text input.
 type agentChatModel struct {
-	messages []Message
-	viewport viewport.Model
-	input    textinput.Model
-	keys     agentChatKeyMap
-	width    int
-	height   int
+	messages        []Message
+	streamAccumulator string
+	isResponding       bool
+	viewport        viewport.Model
+	input           textinput.Model
+	keys            agentChatKeyMap
+	width           int
+	height          int
 }
 
 func newAgentChatModel() agentChatModel {
 	ti := textinput.New()
-	// TODO: add bank of random placeholders like this
+	// TODO(polish): add bank of random placeholders like this
 	ti.Placeholder = "hey lucio, play my favorite song..."
 	ti.SetStyles(ti.Styles())
 	ti.Focus()
@@ -114,24 +115,29 @@ func (c *agentChatModel) resize() {
 }
 
 func (c agentChatModel) renderMessages() string {
-	if len(c.messages) == 0 {
-		return ""
+	lines := make([]string, 0, len(c.messages)+1)
+	for _, msg := range c.messages {
+		lines = append(lines, renderMessage(msg))
 	}
-	lines := make([]string, len(c.messages))
-	for i, msg := range c.messages {
-		lines[i] = renderMessage(msg)
+	if c.isResponding {
+		content := c.streamAccumulator
+		if content == "" {
+			content = "..."
+		}
+		lines = append(lines, renderMessage(Message{Sender: SenderAgent, Content: content}))
+	}
+	if len(lines) == 0 {
+		return ""
 	}
 	return strings.Join(lines, "\n")
 }
 
-// renderMessage renders a single message.
-// User messages are "bare": plain label + text.
 // Agent messages share the same structure but use distinct styling and are
 // designed to be extended (e.g. tool result blocks below the content line).
 func renderMessage(msg Message) string {
 	switch msg.Sender {
 	case SenderAgent:
-		label := agentMsgLabelStyle.Render("agent")
+		label := agentMsgLabelStyle.Render("lucio")
 		return label + "  " + agentMsgTextStyle.Render(msg.Content)
 	default:
 		label := userMsgLabelStyle.Render("you")
@@ -149,6 +155,31 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 		c.resize()
 		return c, nil
 
+	case AgentChunkMsg:
+		if msg.Err != nil {
+			c.messages = append(c.messages, Message{Sender: SenderAgent, Content: "error: " + msg.Err.Error()})
+			if len(c.messages) > maxChatMessages {
+				c.messages = c.messages[len(c.messages)-maxChatMessages:]
+			}
+			c.streamAccumulator = ""
+			c.isResponding = false
+		} else {
+			c.streamAccumulator += msg.Text
+			if msg.Done {
+				if c.streamAccumulator != "" {
+					c.messages = append(c.messages, Message{Sender: SenderAgent, Content: c.streamAccumulator})
+					if len(c.messages) > maxChatMessages {
+						c.messages = c.messages[len(c.messages)-maxChatMessages:]
+					}
+				}
+				c.streamAccumulator = ""
+				c.isResponding = false
+			}
+		}
+		c.viewport.SetContent(c.renderMessages())
+		c.viewport.GotoBottom()
+		return c, nil
+
 	case tea.PasteMsg:
 		c.input, cmd = c.input.Update(msg)
 		return c, cmd
@@ -157,7 +188,7 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 		switch {
 		case key.Matches(msg, c.keys.Send):
 			text := strings.TrimSpace(c.input.Value())
-			if text == "" {
+			if text == "" || c.isResponding {
 				return c, nil
 			}
 			c.messages = append(c.messages, Message{Sender: SenderUser, Content: text})
@@ -165,9 +196,10 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 				c.messages = c.messages[len(c.messages)-maxChatMessages:]
 			}
 			c.input.SetValue("")
+			c.isResponding = true
 			c.viewport.SetContent(c.renderMessages())
 			c.viewport.GotoBottom()
-			return c, nil
+			return c, func() tea.Msg { return AgentQueryMsg{Text: text} }
 
 		case key.Matches(msg, c.keys.ScrollUp), key.Matches(msg, c.keys.ScrollDown):
 			c.viewport, cmd = c.viewport.Update(msg)
@@ -191,7 +223,7 @@ func (c agentChatModel) View() string {
 	)
 }
 
-// agentTabModel is the full Agent tab: chat frame on the left, empty data frame on the right.
+// TODO(feat): implement data visualization frame on the right
 type agentTabModel struct {
 	chat   agentChatModel
 	width  int
@@ -208,16 +240,21 @@ func (t agentTabModel) Update(msg tea.Msg) (agentTabModel, tea.Cmd) {
 		t.width = msg.Width
 		t.height = msg.Height
 		halfW := msg.Width / 2
-		// pass the frame's inner content dimensions to the chat model
+
 		chatMsg := tea.WindowSizeMsg{
-			Width:  max(1, halfW-2),      // frame border is 1 each side
-			Height: max(1, msg.Height-2), // frame border is 1 top and bottom
+			Width:  max(1, halfW-2),      // frame borders are 1 each side
+			Height: max(1, msg.Height-2),
 		}
 		var cmd tea.Cmd
 		t.chat, cmd = t.chat.Update(chatMsg)
 		return t, cmd
 
 	case tea.KeyPressMsg, tea.PasteMsg:
+		var cmd tea.Cmd
+		t.chat, cmd = t.chat.Update(msg)
+		return t, cmd
+
+	case AgentChunkMsg:
 		var cmd tea.Cmd
 		t.chat, cmd = t.chat.Update(msg)
 		return t, cmd
@@ -242,16 +279,12 @@ func (t agentTabModel) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, chatFrame, dataFrame)
 }
 
-// dataFrameSprite returns the 4-row ANSI sprite shown in the data frame.
-// To color individual rows, wrap each row with a lipgloss style before joining, e.g.:
-//
-//	row1 = lipgloss.NewStyle().Foreground(lipgloss.Color("#RRGGBB")).Render(row1)
 func dataFrameSprite() string {
 	row1 := "   ▄▄░▄▄▒"
-	row2 := " ██████▌"
-	row3 := "▐██████▌"
-	row4 := " ▀▀▀▀▀▀"
+	row2 := " ██████▌ "
+	row3 := "▐██████▌ "
+	row4 := " ▀▀▀▀▀▀ "
 
-	// TODO: add colors
+	// TODO(polish): add colors
 	return strings.Join([]string{row1, row2, row3, row4}, "\n")
 }

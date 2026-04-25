@@ -15,6 +15,9 @@ import (
 	"aleguy02/spotify-tui/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
+	adkagent "google.golang.org/adk/agent"
+	adkrunner "google.golang.org/adk/runner"
+	"google.golang.org/genai"
 )
 
 // Paths to the gesture client and its Python interpreter, relative to CWD
@@ -27,10 +30,16 @@ const (
 type PSTickMsg string
 
 func doTick() tea.Cmd {
-	return tea.Tick(time.Second * 3600, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Second*3, func(t time.Time) tea.Msg {
 		return PSTickMsg("hi")
 	})
 }
+
+// agentUserID and agentSessionID are fixed for this single-user TUI app.
+const (
+	agentUserID    = "local"
+	agentSessionID = "default"
+)
 
 type Model struct {
 	active        int
@@ -39,14 +48,61 @@ type Model struct {
 	gestureCancel context.CancelFunc
 	gestureChan   chan tea.Msg
 	gestureProc   *os.Process
+	agentRunner   *adkrunner.Runner
+	agentChan     chan tea.Msg
 }
 
-func newModel(client *sp.SpotifyClient) *Model {
+func newModel(client *sp.SpotifyClient, agentRunner *adkrunner.Runner) *Model {
 	return &Model{
 		active:        0,
 		views:         []tea.Model{ui.NewMenu()},
 		spotifyClient: client,
+		agentRunner:   agentRunner,
 	}
+}
+
+func waitForAgentChunkCmd(ch chan tea.Msg) tea.Cmd {
+	// no active agent query
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		msg, ok := <-ch  // blocks until the next streamed agent event arrives
+		if !ok {
+			return ui.AgentChunkMsg{Done: true}
+		}
+		return msg
+	}
+}
+
+func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, streamCh chan tea.Msg) {
+	defer close(streamCh)
+
+	userMsg := &genai.Content{
+		Parts: []*genai.Part{{Text: text}},
+		Role:  "user",
+	}
+	for event, err := range r.Run(ctx, agentUserID, agentSessionID, userMsg, adkagent.RunConfig{StreamingMode: adkagent.StreamingModeSSE}) {
+		if err != nil {
+			streamCh <- ui.AgentChunkMsg{Err: err, Done: true}
+			return
+		}
+		if event == nil || event.LLMResponse.Content == nil || event.Author == "user" {
+			continue
+		}
+		var chunk string
+		for _, part := range event.LLMResponse.Content.Parts {
+			chunk += part.Text
+		}
+		done := !event.LLMResponse.Partial
+		if chunk != "" || done {
+			streamCh <- ui.AgentChunkMsg{Text: chunk, Done: done}
+		}
+		if done {
+			return
+		}
+	}
+	streamCh <- ui.AgentChunkMsg{Done: true}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -100,6 +156,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			label = fmt.Sprintf("queued: %s", msg.Name)
 		}
 		return m, tea.Batch(func() tea.Msg { return sp.QueueSuccessMsg(label) }, gestures.WaitForGestureCmd(m.gestureChan))
+
+	case ui.AgentQueryMsg:
+		if m.agentRunner != nil {
+			ch := make(chan tea.Msg)
+			m.agentChan = ch
+			go runAgentStream(m.agentRunner, context.Background(), msg.Text, ch)
+			return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
+		}
+		return m, cmd
+
+	case ui.AgentChunkMsg:
+		if msg.Done || msg.Err != nil {
+			m.agentChan = nil
+			return m, cmd
+		}
+		return m, tea.Batch(cmd, waitForAgentChunkCmd(m.agentChan))
 
 	case PSTickMsg:
 		state, err := m.spotifyClient.GetPlaybackState()

@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -6,17 +6,15 @@ import (
 	"fmt"
 	"iter"
 	"log"
-	"os"
-
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/llmagent"
-	"google.golang.org/adk/cmd/launcher"
-	"google.golang.org/adk/cmd/launcher/full"
-	"google.golang.org/adk/model"
-	"google.golang.org/genai"
-
 	"net/http"
 	"net/url"
+	"os"
+
+	"google.golang.org/adk/agent/llmagent"
+	"google.golang.org/adk/model"
+	"google.golang.org/adk/runner"
+	"google.golang.org/adk/session"
+	"google.golang.org/genai"
 
 	ollama "github.com/ollama/ollama/api"
 )
@@ -46,7 +44,7 @@ func NewOllamaModel(modelName string, urlStr string) (*myLLM, error) {
 	var client *ollama.Client
 	if urlStr != "" {
 		c := &http.Client{}
-		client = ollama.NewClient(u, c)
+		client = ollama.NewClient(u, c)  // TODO: what happens if the url string parses correctly but is wrong?
 	} else {
 		client, err = ollama.ClientFromEnvironment()
 		if err != nil {
@@ -169,31 +167,30 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 
 }
 
-func main() {
-	// use NewOllamaModel to init model
-	model, err := NewOllamaModel("gemma4:e2b", "")
+// NewRunner creates a ready-to-use ADK runner backed by Ollama with an in-memory session.
+func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
+	llm, err := NewOllamaModel(modelName, urlStr)
 	if err != nil {
-		log.Fatalf("Failed to create model: %v", err)
+		return nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
-	timeAgent, err := llmagent.New(llmagent.Config{
-		Name:        "hello_world_agent",
-		// Description: "",
-		Model:       model,
-		Instruction: "",
-		// Tools: []tool.Tool{
-		// },
+	ag, err := llmagent.New(llmagent.Config{
+		Name:  "spotify_agent",
+		Model: llm,
 	})
 	if err != nil {
-		log.Fatalf("Failed to create agent: %v", err)
+		return nil, fmt.Errorf("failed to create llm agent: %w", err)
 	}
 
-	config := &launcher.Config{
-		AgentLoader: agent.NewSingleLoader(timeAgent),
+	r, err := runner.New(runner.Config{
+		AppName:           "spotify-tui",
+		Agent:             ag,
+		SessionService:    session.InMemoryService(),
+		AutoCreateSession: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
 
-	l := full.NewLauncher()
-	if err = l.Execute(context.Background(), config, os.Args[1:]); err != nil {
-		log.Fatalf("Run failed: %v\n\n%s", err, l.CommandLineSyntax())
-	}
+	return r, nil
 }

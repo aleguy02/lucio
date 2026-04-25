@@ -191,6 +191,10 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nowPlaying, _ = m.nowPlaying.Update(msg)
 		return m, nil
 
+	case AgentChunkMsg:
+		m.agentTab, cmd = m.agentTab.Update(msg)
+		return m, cmd
+
 	case tea.PasteMsg:
 		if m.state == terminalMode {
 			m.textInput, cmd = m.textInput.Update(msg)
