@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -25,7 +26,7 @@ import (
 var fileLog *log.Logger
 
 func init() {
-	f, err := os.OpenFile("agent.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	f, err := os.OpenFile(filepath.Join("logs", "agent.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("failed to open log file: %v", err)
 	}
@@ -109,7 +110,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			}
 		}
 
-		// TODO(debug): remove after ensuring agent can see its sent messages
+		// TODO(debug): remove in prod. Also there should be more logs for the agent I'll add those somewhere eventually
 		if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
 			fileLog.Printf("message history:\n%s", b)
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	myagent "aleguy02/spotify-tui/internal/agent"
 	"aleguy02/spotify-tui/internal/spotify"
@@ -12,7 +13,7 @@ import (
 )
 
 func main() {
-	f, err := tea.LogToFile("debug.log", "")
+	f, err := tea.LogToFile(filepath.Join("logs", "tui.log"), "")
 	if err != nil {
 		fmt.Println("fatal:", err)
 		os.Exit(1)

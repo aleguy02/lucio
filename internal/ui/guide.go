@@ -127,12 +127,12 @@ func (m guide) sectionContent() string {
 			{"search album <query>", "Search for an album"},
 			{"search track <query>", "Search for a track"},
 			{"search playlist <query>", "Search for a playlist"},
-			{"details", "Open details for current song"},
+			{"details", "Open details for current track"},
 			{"devices list", "List available playback devices"},
 			{"devices select <id>", "Transfer playback to device"},
 			{"playlists", "See your playlists"},
-			{"shuffle", "Toggle playback shuffle"},
-			{"theme [default|minimalist|vibes]", "Set visual theme"},
+			{"shuffle [on|off]", "Toggle playback shuffle"},
+			{"theme [default|minimalist|vibes]", "Set visual theme (coming soon...)"},
 			{"help", "Open help"},
 		}
 		var lines []string

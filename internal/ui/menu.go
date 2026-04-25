@@ -253,6 +253,11 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				TerminalLog.Println("Warning: selected search result does not have URI")
 			case key.Matches(msg, m.searchResults.Keys.AltSelect):
 				item := m.searchResults.Selected()
+				// 1 is albums, 4 is playlists
+				if item.Type == 1 || item.Type == 4 {
+					errMsg := sp.SpotifyRouteErrorMsg("this item type does not support queueing")
+					return m, func() tea.Msg { return errMsg }
+				}
 				if item.ID != "" {
 					name := ""
 					if len(item.ShortViewItems) > 0 {
@@ -280,6 +285,11 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case key.Matches(msg, m.spotifyItem.Keys.AltSelect):
 				item := m.spotifyItem.details.RawItem()
+				// 1 is albums, 4 is playlists
+				if item.Type == 1 || item.Type == 4 {
+					errMsg := sp.SpotifyRouteErrorMsg("this item type does not support queueing")
+					return m, func() tea.Msg { return errMsg }
+				}
 				if item.ID != "" {
 					name := ""
 					if len(item.ShortViewItems) > 0 {

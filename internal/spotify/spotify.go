@@ -20,6 +20,16 @@ import (
 	"golang.org/x/oauth2"
 )
 
+var logger *log.Logger
+
+func init() {
+	f, err := os.OpenFile(filepath.Join("logs", "spotify.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalf("failed to open log file: %v", err)
+	}
+	logger = log.New(f, "", log.LstdFlags)
+}
+
 type SpotifyClient struct {
 	client *zmb.Client
 }
@@ -60,8 +70,9 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 	return &SpotifyClient{client: client}, nil
 }
 
-// runOAuthFlow starts a temporary local HTTP server on the redirect URI port,
-// opens the Spotify auth page in the browser, and waits for the OAuth callback.
+/*
+ * Auth Flow
+ */
 func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Client, error) {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
@@ -91,10 +102,10 @@ func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Cli
 			return
 		}
 		if err := saveToken(tok); err != nil {
-			log.Printf("warning: could not cache token: %v", err)
+			logger.Printf("warning: could not cache token: %v", err)
 		}
 		if _, err := fmt.Fprintln(w, "Authentication successful! You can close this tab."); err != nil {
-			log.Printf("failed to write authentication success message: %v", err)
+			logger.Printf("failed to write authentication success message: %v", err)
 		}
 		clientCh <- zmb.New(auth.Client(r.Context(), tok))
 	})
@@ -183,6 +194,10 @@ func saveToken(tok *oauth2.Token) error {
 	return os.WriteFile(path, data, 0600)
 }
 
+
+/*
+ * Internal Logic
+ */
 // Route dispatches a SpotifyActionMsg to the appropriate client method.
 // It returns an optional result string (non-empty for commands that surface data,
 // e.g. "devices list") and an error.
@@ -231,14 +246,21 @@ func (c *SpotifyClient) Route(msg SpotifyActionMsg) (string, error) {
 		return "", c.seekBack(s)
 
 	case CmdShuffle:
-		if msg.Arg != "" {
-			return "", fmt.Errorf("SHUFFLE takes no argument, got %q", msg.Arg)
+		sub := strings.TrimSpace(msg.Arg)
+		switch sub {
+		case "on":
+			return "", c.toggleShuffle(true)
+		case "off":
+			return "", c.toggleShuffle(false)
+		case "":
+			return "", fmt.Errorf("SHUFFLE requires on or off")
+		default:
+			return "", fmt.Errorf("unknown SHUFFLE argument %q: expected on or off", sub)
 		}
-		return "", c.toggleShuffle()
 
 	case CmdDevices:
 		sub, id, _ := strings.Cut(strings.TrimSpace(msg.Arg), " ")
-		switch strings.ToLower(strings.TrimSpace(sub)) {
+		switch sub {
 		case "list":
 			names, err := c.GetDeviceNames()
 			return names, err
@@ -282,105 +304,136 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 		return nil, fmt.Errorf("SEARCH %s requires a non-empty search term", subcommand)
 	}
 
-	searchResult, err := c.search(term, searchType)
-	if err != nil {
-		return nil, err
-	}
-
-	// the frontend works with SpotifyItem structs, so we extract searchResult(s) into an []SpotifyItem
+	// searching playlists sometimes returns lots of empty/null results, so we do a bounded loop until we find 7 results
+	const limit = 7
+	const retries = 3
 	var results []SpotifyItem
-	if searchResult.Artists != nil {
-		for _, a := range searchResult.Artists.Artists {
-			results = append(results, SpotifyItem{
-				Type:           searchType,
-				URI:            a.URI,
-				ID:             a.ID,
-				ShortViewItems: []string{a.Name},
-				LongView: Details{
-					Name: a.Name,
-					Metadata: []MetaItem{{
-						Label: "followers", Value: strconv.Itoa(int(a.Followers.Count)),
-					}},
-				},
-			})
-		}
-	}
-	if searchResult.Albums != nil {
-		for _, a := range searchResult.Albums.Albums {
-			var artistNames []string
-			for _, artist := range a.Artists {
-				artistNames = append(artistNames, artist.Name)
-			}
-			artists := strings.Join(artistNames, ", ")
-			results = append(results, SpotifyItem{
-				Type:           searchType,
-				URI:            a.URI,
-				ID:             a.ID,
-				ShortViewItems: []string{a.Name, artists},
-				LongView: Details{
-					Name: a.Name,
-					Metadata: []MetaItem{
-						{Label: "artists", Value: artists},
-						{Label: "# tracks", Value: strconv.Itoa(int(a.TotalTracks))},
-						{Label: "released", Value: a.ReleaseDate},
-					},
-				},
-			})
-		}
-	}
-	if searchResult.Tracks != nil {
-		for _, t := range searchResult.Tracks.Tracks {
-			var artistNames []string
-			for _, artist := range t.Artists {
-				artistNames = append(artistNames, artist.Name)
-			}
-			artists := strings.Join(artistNames, ", ")
-			results = append(results, SpotifyItem{
-				Type:           searchType,
-				URI:            t.URI,
-				ID:             t.ID,
-				ShortViewItems: []string{t.Name, artists},
-				LongView: Details{
-					Name: t.Name,
-					Metadata: []MetaItem{
-						{Label: "artists", Value: artists},
-						{Label: "album", Value: t.Album.Name},
-						{Label: "duration", Value: strconv.Itoa(int(t.Duration))},
-					},
-				},
-			})
-		}
-	}
-	if searchResult.Playlists != nil {
-		for _, p := range searchResult.Playlists.Playlists {
-			var collaborative string
-			if p.Collaborative {
-				collaborative = "yes"
-			} else {
-				collaborative = "no"
-			}
+	offset := 0
+	found := 0
 
-			metadata := []MetaItem{
-				{Label: "owner", Value: p.Owner.DisplayName},
-				{Label: "# tracks", Value: strconv.Itoa(int(p.Tracks.Total))},
-				{Label: "collaborative", Value: collaborative},				
-			}
-			
-			if p.Description != "" {
-				metadata = append(metadata, MetaItem{Label: "description", Value: p.Description})
-			}
-
-			results = append(results, SpotifyItem{
-				Type:           searchType,
-				URI:            p.URI,
-				ID:             p.ID,
-				ShortViewItems: []string{p.Name, p.Owner.DisplayName},
-				LongView: Details{
-					Name:     p.Name,
-					Metadata: metadata,
-				},
-			})
+	for found < limit && offset < retries {
+		tmpResult, err := c.search(term, searchType, offset*limit)
+		if err != nil {
+			return nil, err
 		}
+
+		iterFound := 0
+		switch searchType {
+		case zmb.SearchTypeArtist:
+			if tmpResult.Artists != nil {
+				for _, a := range tmpResult.Artists.Artists {
+					if string(a.ID) == "" {
+						continue
+					}
+					results = append(results, SpotifyItem{
+						Type:           searchType,
+						URI:            a.URI,
+						ID:             a.ID,
+						ShortViewItems: []string{a.Name},
+						LongView: Details{
+							Name: a.Name,
+							Metadata: []MetaItem{{
+								Label: "followers", Value: strconv.Itoa(int(a.Followers.Count)),
+							}},
+						},
+					})
+					iterFound++
+				}
+			}
+		case zmb.SearchTypeAlbum:
+			if tmpResult.Albums != nil {
+				for _, a := range tmpResult.Albums.Albums {
+					if string(a.ID) == "" {
+						continue
+					}
+					var artistNames []string
+					for _, artist := range a.Artists {
+						artistNames = append(artistNames, artist.Name)
+					}
+					artists := strings.Join(artistNames, ", ")
+					results = append(results, SpotifyItem{
+						Type:           searchType,
+						URI:            a.URI,
+						ID:             a.ID,
+						ShortViewItems: []string{a.Name, artists},
+						LongView: Details{
+							Name: a.Name,
+							Metadata: []MetaItem{
+								{Label: "artists", Value: artists},
+								{Label: "# tracks", Value: strconv.Itoa(int(a.TotalTracks))},
+								{Label: "released", Value: a.ReleaseDate},
+							},
+						},
+					})
+					iterFound++
+				}
+			}
+		case zmb.SearchTypeTrack:
+			if tmpResult.Tracks != nil {
+				for _, t := range tmpResult.Tracks.Tracks {
+					if string(t.ID) == "" {
+						continue
+					}
+					var artistNames []string
+					for _, artist := range t.Artists {
+						artistNames = append(artistNames, artist.Name)
+					}
+					artists := strings.Join(artistNames, ", ")
+					results = append(results, SpotifyItem{
+						Type:           searchType,
+						URI:            t.URI,
+						ID:             t.ID,
+						ShortViewItems: []string{t.Name, artists},
+						LongView: Details{
+							Name: t.Name,
+							Metadata: []MetaItem{
+								{Label: "artists", Value: artists},
+								{Label: "album", Value: t.Album.Name},
+								{Label: "duration", Value: strconv.Itoa(int(t.Duration))},
+							},
+						},
+					})
+					iterFound++
+				}
+			}
+		case zmb.SearchTypePlaylist:
+			if tmpResult.Playlists != nil {
+				for _, p := range tmpResult.Playlists.Playlists {
+					if string(p.ID) == "" {
+						continue
+					}
+					var collaborative string
+					if p.Collaborative {
+						collaborative = "yes"
+					} else {
+						collaborative = "no"
+					}
+					metadata := []MetaItem{
+						{Label: "owner", Value: p.Owner.DisplayName},
+						// {Label: "# tracks", Value: strconv.Itoa(int(p.Tracks.Total))},   // the spotify API doesn't track this anymore so it was always 0
+						{Label: "collaborative", Value: collaborative},
+					}
+					if p.Description != "" {
+						metadata = append(metadata, MetaItem{Label: "description", Value: p.Description})
+					}
+					results = append(results, SpotifyItem{
+						Type:           searchType,
+						URI:            p.URI,
+						ID:             p.ID,
+						ShortViewItems: []string{p.Name, p.Owner.DisplayName},
+						LongView: Details{
+							Name:     p.Name,
+							Metadata: metadata,
+						},
+					})
+					iterFound++
+				}
+			}
+		}
+
+		found += iterFound
+		logger.Printf("search [%s %q] attempt %d: found %d this iteration, %d total", subcommand, term, offset, iterFound, found)
+		offset++
 	}
 
 	return results, nil
@@ -403,7 +456,7 @@ func (c *SpotifyClient) HandlePlaylists() ([]SpotifyItem, error) {
 
 		metadata := []MetaItem{
 			{Label: "owner", Value: p.Owner.DisplayName},
-			{Label: "# tracks", Value: strconv.Itoa(int(p.Tracks.Total))},
+			// {Label: "# tracks", Value: strconv.Itoa(int(p.Tracks.Total))},   // the spotify API doesn't track this anymore so it was always 0
 			{Label: "collaborative", Value: collaborative},
 		}
 
@@ -467,12 +520,8 @@ func (c *SpotifyClient) seekForward(s int) error {
 	return c.client.Seek(context.Background(), newPos)
 }
 
-func (c *SpotifyClient) toggleShuffle() error {
-	state, err := c.client.PlayerState(context.Background())
-	if err != nil {
-		return fmt.Errorf("could not get player state: %w", err)
-	}
-	return c.client.Shuffle(context.Background(), !state.ShuffleState)
+func (c *SpotifyClient) toggleShuffle(curShuffleState bool) error {
+	return c.client.Shuffle(context.Background(), curShuffleState)
 }
 
 func (c *SpotifyClient) seekBack(s int) error {
@@ -487,10 +536,10 @@ func (c *SpotifyClient) seekBack(s int) error {
 	return c.client.Seek(context.Background(), newPos)
 }
 
-func (c *SpotifyClient) search(query string, t zmb.SearchType) (*zmb.SearchResult, error) {
-	result, err := c.client.Search(context.Background(), query, t, zmb.Limit(7))
+func (c *SpotifyClient) search(query string, t zmb.SearchType, offset int) (*zmb.SearchResult, error) {
+	result, err := c.client.Search(context.Background(), query, t, zmb.Limit(7), zmb.Offset(offset))
 	if err != nil {
-		return nil, fmt.Errorf("could not not perform search: %w", err)
+		return nil, fmt.Errorf("could not perform search: %w", err)
 	}
 	return result, nil
 }
@@ -625,7 +674,7 @@ type MetaItem struct {
 	Value string
 }
 
-// TODO: could be extended with device, repeat state
+// TODO(feat): could be extended with device, repeat state
 type PlaybackState struct {
 	Progress     int
 	IsPlaying    bool

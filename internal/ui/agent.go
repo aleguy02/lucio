@@ -35,7 +35,7 @@ type agentChatKeyMap struct {
 }
 
 func (k agentChatKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Send, k.ScrollUp}
+	return []key.Binding{k.Send, k.ScrollUp, k.ScrollDown}
 }
 
 func (k agentChatKeyMap) FullHelp() [][]key.Binding {
