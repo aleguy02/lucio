@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
+	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/runner"
@@ -107,7 +109,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			}
 		}
 
-		// TODO: remove after ensuring agent can see its sent messages
+		// TODO(debug): remove after ensuring agent can see its sent messages
 		if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
 			fileLog.Printf("message history:\n%s", b)
 		}
@@ -183,12 +185,26 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 		return nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
+	// TODO(bug): sometimes newlines render extra tall sometimes not. It makes the agent response look messed up
+	// this is a temporary fix to clamp extra newlines to mitigate the issue
+	doubleNewline := regexp.MustCompile(`\n\n+`)
+	collapseNewlines := func(_ agent.CallbackContext, resp *model.LLMResponse, respErr error) (*model.LLMResponse, error) {
+		if respErr != nil || resp == nil || resp.Content == nil {
+			return resp, respErr
+		}
+		for _, p := range resp.Content.Parts {
+			p.Text = doubleNewline.ReplaceAllString(p.Text, "\n")
+		}
+		return resp, nil
+	}
+
 	// TODO(improvement):
 	// 	- add compaction depending on yaml file
-	//	- add AfterModelCallbacks for observability and logging
 	ag, err := llmagent.New(llmagent.Config{
-		Name:  "spotify_agent",
-		Model: llm,
+		Name:                "spotify_agent",
+		Model:               llm,
+		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
+		Instruction: "Always respond in fewer than 200 words.",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create llm agent: %w", err)
