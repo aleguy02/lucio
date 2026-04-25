@@ -14,7 +14,7 @@ import (
 type MessageSender int
 
 const (
-	SenderUser  MessageSender = iota
+	SenderUser MessageSender = iota
 	SenderAgent
 )
 
@@ -60,8 +60,8 @@ func defaultAgentChatKeyMap() agentChatKeyMap {
 }
 
 var (
-	agentFrameStyle = lipgloss.NewStyle().Border(lipgloss.HiddenBorder()) 
-	dataFrameStyle = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(ColorWhite)
+	agentFrameStyle = lipgloss.NewStyle().Border(lipgloss.HiddenBorder())
+	dataFrameStyle  = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(ColorWhite)
 
 	chatInputBoxStyle = lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
@@ -75,14 +75,14 @@ var (
 )
 
 type agentChatModel struct {
-	messages        []Message
+	messages          []Message
 	streamAccumulator string
-	isResponding       bool
-	viewport        viewport.Model
-	input           textinput.Model
-	keys            agentChatKeyMap
-	width           int
-	height          int
+	isResponding      bool
+	viewport          viewport.Model
+	input             textinput.Model
+	keys              agentChatKeyMap
+	width             int
+	height            int
 }
 
 func newAgentChatModel() agentChatModel {
@@ -167,7 +167,7 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 			if !msg.Done {
 				c.streamAccumulator += msg.Text
 			}
-			
+
 			if msg.Done {
 				if c.streamAccumulator != "" {
 					c.messages = append(c.messages, Message{Sender: SenderAgent, Content: c.streamAccumulator})
@@ -245,7 +245,7 @@ func (t agentTabModel) Update(msg tea.Msg) (agentTabModel, tea.Cmd) {
 		halfW := msg.Width / 2
 
 		chatMsg := tea.WindowSizeMsg{
-			Width:  max(1, halfW-2),      // frame borders are 1 each side
+			Width:  max(1, halfW-2), // frame borders are 1 each side
 			Height: max(1, msg.Height-2),
 		}
 		var cmd tea.Cmd

@@ -67,7 +67,7 @@ func waitForAgentChunkCmd(ch chan tea.Msg) tea.Cmd {
 		return nil
 	}
 	return func() tea.Msg {
-		msg, ok := <-ch  // blocks until the next streamed agent event arrives
+		msg, ok := <-ch // blocks until the next streamed agent event arrives
 		if !ok {
 			return ui.AgentChunkMsg{Done: true}
 		}
@@ -87,14 +87,14 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 			streamCh <- ui.AgentChunkMsg{Err: err, Done: true}
 			return
 		}
-		if event == nil || event.LLMResponse.Content == nil || event.Author == "user" {
+		if event == nil || event.Content == nil || event.Author == "user" {
 			continue
 		}
 		var chunk string
-		for _, part := range event.LLMResponse.Content.Parts {
+		for _, part := range event.Content.Parts {
 			chunk += part.Text
 		}
-		done := !event.LLMResponse.Partial
+		done := !event.Partial
 		if chunk != "" || done {
 			streamCh <- ui.AgentChunkMsg{Text: chunk, Done: done}
 		}

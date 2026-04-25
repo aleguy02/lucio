@@ -45,7 +45,7 @@ func NewOllamaModel(modelName string, urlStr string) (*myLLM, error) {
 	var client *ollama.Client
 	if urlStr != "" {
 		c := &http.Client{}
-		client = ollama.NewClient(u, c)  // TODO: what happens if the url string parses correctly but is wrong?
+		client = ollama.NewClient(u, c) // TODO: what happens if the url string parses correctly but is wrong?
 	} else {
 		client, err = ollama.ClientFromEnvironment()
 		if err != nil {
@@ -144,7 +144,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				Partial:      !resp.Done,
 				TurnComplete: resp.Done,
 			}
-			
+
 			ch <- callbackRes{
 				res: res,
 				err: nil,
@@ -183,7 +183,7 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 		return nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
-	// TODO(improvement): 
+	// TODO(improvement):
 	// 	- add compaction depending on yaml file
 	//	- add AfterModelCallbacks for observability and logging
 	ag, err := llmagent.New(llmagent.Config{

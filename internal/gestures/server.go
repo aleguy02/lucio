@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	sp "aleguy02/spotify-tui/internal/spotify"
+	tea "charm.land/bubbletea/v2"
 )
 
 const SocketPath = "/tmp/spotify-tui.sock"

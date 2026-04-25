@@ -122,25 +122,25 @@ type SpotifyItemDetails interface {
 	View() string
 	ItemType() string
 	RawItem() sp.SpotifyItem
-	relatedItems() []sp.SpotifyItem  // reserved for future graph navigation
-	userStats() map[string]string    // reserved for future user analytics
+	relatedItems() []sp.SpotifyItem // reserved for future graph navigation
+	userStats() map[string]string   // reserved for future user analytics
 }
 
 type TrackDetails struct{ raw sp.SpotifyItem }
 
-func (d TrackDetails) ItemType() string                { return "track" }
-func (d TrackDetails) RawItem() sp.SpotifyItem         { return d.raw }
-func (d TrackDetails) relatedItems() []sp.SpotifyItem  { return nil }
-func (d TrackDetails) userStats() map[string]string    { return nil }
-func (d TrackDetails) View() string                    { return renderDetails("[Track Details]", d.raw.LongView) }
+func (d TrackDetails) ItemType() string               { return "track" }
+func (d TrackDetails) RawItem() sp.SpotifyItem        { return d.raw }
+func (d TrackDetails) relatedItems() []sp.SpotifyItem { return nil }
+func (d TrackDetails) userStats() map[string]string   { return nil }
+func (d TrackDetails) View() string                   { return renderDetails("[Track Details]", d.raw.LongView) }
 
 type AlbumDetails struct{ raw sp.SpotifyItem }
 
-func (d AlbumDetails) ItemType() string                { return "album" }
-func (d AlbumDetails) RawItem() sp.SpotifyItem         { return d.raw }
-func (d AlbumDetails) relatedItems() []sp.SpotifyItem  { return nil }
-func (d AlbumDetails) userStats() map[string]string    { return nil }
-func (d AlbumDetails) View() string                    { return renderDetails("[Album Details]", d.raw.LongView) }
+func (d AlbumDetails) ItemType() string               { return "album" }
+func (d AlbumDetails) RawItem() sp.SpotifyItem        { return d.raw }
+func (d AlbumDetails) relatedItems() []sp.SpotifyItem { return nil }
+func (d AlbumDetails) userStats() map[string]string   { return nil }
+func (d AlbumDetails) View() string                   { return renderDetails("[Album Details]", d.raw.LongView) }
 
 type ArtistDetails struct{ raw sp.SpotifyItem }
 

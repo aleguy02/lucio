@@ -68,17 +68,17 @@ var (
 
 // Menu is the central state machine owning all views and the terminal input.
 type Menu struct {
-	spinner        spinner.Model
-	textInput      textinput.Model
-	state          menuState
-	menuKeys       menuModeKeyMap
-	termKeys       terminalModeKeyMap
-	help           help.Model
-	modalitiesList ModalitiesModel
-	alert          string
-	successAlert   string
-	searchResults  InteractiveSearchResultsModel
-	spotifyItem    SpotifyItemModel
+	spinner         spinner.Model
+	textInput       textinput.Model
+	state           menuState
+	menuKeys        menuModeKeyMap
+	termKeys        terminalModeKeyMap
+	help            help.Model
+	modalitiesList  ModalitiesModel
+	alert           string
+	successAlert    string
+	searchResults   InteractiveSearchResultsModel
+	spotifyItem     SpotifyItemModel
 	spotifyItemPrev menuState
 
 	currentTab tabIndex
