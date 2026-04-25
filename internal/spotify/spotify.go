@@ -230,6 +230,12 @@ func (c *SpotifyClient) Route(msg SpotifyActionMsg) (string, error) {
 		}
 		return "", c.seekBack(s)
 
+	case CmdShuffle:
+		if msg.Arg != "" {
+			return "", fmt.Errorf("SHUFFLE takes no argument, got %q", msg.Arg)
+		}
+		return "", c.toggleShuffle()
+
 	case CmdDevices:
 		sub, id, _ := strings.Cut(strings.TrimSpace(msg.Arg), " ")
 		switch strings.ToLower(strings.TrimSpace(sub)) {
@@ -461,6 +467,14 @@ func (c *SpotifyClient) seekForward(s int) error {
 	return c.client.Seek(context.Background(), newPos)
 }
 
+func (c *SpotifyClient) toggleShuffle() error {
+	state, err := c.client.PlayerState(context.Background())
+	if err != nil {
+		return fmt.Errorf("could not get player state: %w", err)
+	}
+	return c.client.Shuffle(context.Background(), !state.ShuffleState)
+}
+
 func (c *SpotifyClient) seekBack(s int) error {
 	state, err := c.client.PlayerState(context.Background())
 	if err != nil {
@@ -518,7 +532,7 @@ func (c *SpotifyClient) GetDeviceNames() (string, error) {
 }
 
 func (c *SpotifyClient) GetPlaybackState() (PlaybackState, error) {
-	result, err := c.client.PlayerCurrentlyPlaying(context.Background())
+	result, err := c.client.PlayerState(context.Background())
 	if err != nil {
 		return PlaybackState{}, fmt.Errorf("could not get playback state: %w", err)
 	}
@@ -533,9 +547,10 @@ func (c *SpotifyClient) GetPlaybackState() (PlaybackState, error) {
 	artists := strings.Join(artistNames, ", ")
 
 	return PlaybackState{
-		Progress:  int(result.Progress),
-		IsPlaying: result.Playing,
-		Context:   1,
+		Progress:     int(result.Progress),
+		IsPlaying:    result.Playing,
+		ShuffleState: result.ShuffleState,
+		Context:      1,
 		Track: SpotifyItem{
 			Type:           zmb.SearchTypeTrack,
 			URI:            t.URI,
@@ -610,10 +625,11 @@ type MetaItem struct {
 	Value string
 }
 
-// TODO: could be extended with device, repeat state, shuffle state
+// TODO: could be extended with device, repeat state
 type PlaybackState struct {
-	Progress  int
-	IsPlaying bool
-	Context   int // TODO
-	Track     SpotifyItem
+	Progress     int
+	IsPlaying    bool
+	ShuffleState bool
+	Context      int // TODO
+	Track        SpotifyItem
 }

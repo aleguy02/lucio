@@ -106,9 +106,15 @@ func (m nowPlaying) View() tea.View {
 	timeAfter := npTimeStyle.Render(timeEnd)
 	bar := timeBefore + progressBar(m.playback.Progress, duration, barWidth) + timeAfter
 
+	shuffleStr := "shuffle: off"
+	if m.playback.ShuffleState {
+		shuffleStr = "shuffle: on"
+	}
+
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		titleLine,
 		npArtistStyle.Render(artistName),
+		npTimeStyle.Render(shuffleStr),
 		"",
 		bar,
 	)

@@ -14,12 +14,13 @@ const (
 	CmdSearch  SpotifyCommand = "SEARCH"
 	CmdDevices SpotifyCommand = "DEVICES"
 	CmdPlaylists SpotifyCommand = "PLAYLISTS"
+	CmdShuffle SpotifyCommand = "SHUFFLE"
 )
 
 var validSpotifyCommands = map[SpotifyCommand]bool{
 	CmdPlay: true, CmdPause: true, CmdSkipF: true, CmdSkipB: true,
 	CmdSeekF: true, CmdSeekB: true, CmdSearch: true, CmdDevices: true,
-	CmdPlaylists: true,
+	CmdPlaylists: true, CmdShuffle: true,
 }
 
 func IsValidSpotifyCommand(cmd SpotifyCommand) bool {

@@ -131,6 +131,7 @@ func (m guide) sectionContent() string {
 			{"devices list", "List available playback devices"},
 			{"devices select <id>", "Transfer playback to device"},
 			{"playlists", "See your playlists"},
+			{"shuffle", "Toggle playback shuffle"},
 			{"theme [default|minimalist|vibes]", "Set visual theme"},
 			{"help", "Open help"},
 		}
