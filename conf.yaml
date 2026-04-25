@@ -3,3 +3,4 @@
 model_provider: "ollama"
 thinking: true
 model_url: null
+compaction: false

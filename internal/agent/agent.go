@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
@@ -106,8 +107,9 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			}
 		}
 
+		// TODO: remove after ensuring agent can see its sent messages
 		if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
-			fileLog.Printf("outgoing messages:\n%s", b)
+			fileLog.Printf("message history:\n%s", b)
 		}
 
 		stream := true
@@ -124,13 +126,20 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		// Convert tool calls
 		// Convert usage metadata
 		// pass messages to a channel from inside the respFunc, which is called for every streamed response?
+		var accumulated strings.Builder
 		respFunc := func(resp ollama.ChatResponse) error {
-			part := &genai.Part{Text: resp.Message.Content}
+			accumulated.WriteString(resp.Message.Content)
+			text := resp.Message.Content
+
+			if resp.Done {
+				text = accumulated.String()
+			}
+			part := &genai.Part{Text: text}
 
 			res := model.LLMResponse{
 				Content: &genai.Content{
 					Parts: []*genai.Part{part},
-					Role: "model",
+					Role:  "model",
 				},
 				Partial:      !resp.Done,
 				TurnComplete: resp.Done,
@@ -174,6 +183,9 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 		return nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
+	// TODO(improvement): 
+	// 	- add compaction depending on yaml file
+	//	- add AfterModelCallbacks for observability and logging
 	ag, err := llmagent.New(llmagent.Config{
 		Name:  "spotify_agent",
 		Model: llm,

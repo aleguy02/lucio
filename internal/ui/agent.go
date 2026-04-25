@@ -138,7 +138,7 @@ func renderMessage(msg Message) string {
 	switch msg.Sender {
 	case SenderAgent:
 		label := agentMsgLabelStyle.Render("lucio")
-		return label + "  " + agentMsgTextStyle.Render(msg.Content)
+		return label + "\n" + agentMsgTextStyle.Render(msg.Content)
 	default:
 		label := userMsgLabelStyle.Render("you")
 		return label + "\n" + userMsgTextStyle.Render(msg.Content)
@@ -164,7 +164,10 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 			c.streamAccumulator = ""
 			c.isResponding = false
 		} else {
-			c.streamAccumulator += msg.Text
+			if !msg.Done {
+				c.streamAccumulator += msg.Text
+			}
+			
 			if msg.Done {
 				if c.streamAccumulator != "" {
 					c.messages = append(c.messages, Message{Sender: SenderAgent, Content: c.streamAccumulator})
