@@ -150,6 +150,14 @@ func (d ArtistDetails) relatedItems() []sp.SpotifyItem { return nil }
 func (d ArtistDetails) userStats() map[string]string   { return nil }
 func (d ArtistDetails) View() string                   { return renderDetails("[Artist Details]", d.raw.LongView) }
 
+type PlaylistDetails struct{ raw sp.SpotifyItem }
+
+func (d PlaylistDetails) ItemType() string               { return "playlist" }
+func (d PlaylistDetails) RawItem() sp.SpotifyItem        { return d.raw }
+func (d PlaylistDetails) relatedItems() []sp.SpotifyItem { return nil }
+func (d PlaylistDetails) userStats() map[string]string   { return nil }
+func (d PlaylistDetails) View() string                   { return renderDetails("[Playlist Details]", d.raw.LongView) }
+
 func renderDetails(header string, d sp.Details) string {
 	var b strings.Builder
 	b.WriteString(detailNameStyle.Render(header))
@@ -181,6 +189,8 @@ func NewSpotifyItemDetails(item sp.SpotifyItem) SpotifyItemDetails {
 		return AlbumDetails{raw: item}
 	case zmb.SearchTypeArtist:
 		return ArtistDetails{raw: item}
+	case zmb.SearchTypePlaylist:
+		return PlaylistDetails{raw: item}
 	default:
 		return TrackDetails{raw: item}
 	}

@@ -220,7 +220,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case menuMode:
 			switch {
 			case key.Matches(msg, m.menuKeys.TabNext):
-				// TODO: the number of tabs (3) is hardcoded which is bad. >:(
+				// TODO(refactor): the number of tabs (3) is hardcoded which is bad. >:(
 				m.currentTab = (m.currentTab + 1) % 3
 				return m, nil
 			case key.Matches(msg, m.menuKeys.TabPrev):

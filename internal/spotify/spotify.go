@@ -43,6 +43,8 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 		spotifyauth.WithScopes(
 			spotifyauth.ScopeUserModifyPlaybackState,
 			spotifyauth.ScopeUserReadPlaybackState,
+			spotifyauth.ScopePlaylistReadPrivate,
+			spotifyauth.ScopePlaylistReadCollaborative,
 		),
 	)
 
@@ -184,6 +186,8 @@ func saveToken(tok *oauth2.Token) error {
 // Route dispatches a SpotifyActionMsg to the appropriate client method.
 // It returns an optional result string (non-empty for commands that surface data,
 // e.g. "devices list") and an error.
+// TODO(refactor): I think this should be refactored to HandlePlaybackAction and make it specific to playback actions
+// and extract devices command to loop
 func (c *SpotifyClient) Route(msg SpotifyActionMsg) (string, error) {
 	cmd := SpotifyCommand(strings.ToUpper(string(msg.Command)))
 
@@ -262,8 +266,10 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 		searchType = zmb.SearchTypeAlbum
 	case "track":
 		searchType = zmb.SearchTypeTrack
+	case "playlist":
+		searchType = zmb.SearchTypePlaylist
 	default:
-		return nil, fmt.Errorf("unknown search subcommand %q: expected artist, album, or track", subcommand)
+		return nil, fmt.Errorf("unknown search subcommand %q: expected artist, album, track, or playlist", subcommand)
 	}
 
 	if strings.TrimSpace(term) == "" {
@@ -275,6 +281,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 		return nil, err
 	}
 
+	// the frontend works with SpotifyItem structs, so we extract searchResult(s) into an []SpotifyItem
 	var results []SpotifyItem
 	if searchResult.Artists != nil {
 		for _, a := range searchResult.Artists.Artists {
@@ -338,7 +345,77 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 			})
 		}
 	}
+	if searchResult.Playlists != nil {
+		for _, p := range searchResult.Playlists.Playlists {
+			var collaborative string
+			if p.Collaborative {
+				collaborative = "yes"
+			} else {
+				collaborative = "no"
+			}
 
+			metadata := []MetaItem{
+				{Label: "owner", Value: p.Owner.DisplayName},
+				{Label: "# tracks", Value: strconv.Itoa(int(p.Tracks.Total))},
+				{Label: "collaborative", Value: collaborative},				
+			}
+			
+			if p.Description != "" {
+				metadata = append(metadata, MetaItem{Label: "description", Value: p.Description})
+			}
+
+			results = append(results, SpotifyItem{
+				Type:           searchType,
+				URI:            p.URI,
+				ID:             p.ID,
+				ShortViewItems: []string{p.Name, p.Owner.DisplayName},
+				LongView: Details{
+					Name:     p.Name,
+					Metadata: metadata,
+				},
+			})
+		}
+	}
+
+	return results, nil
+}
+
+func (c *SpotifyClient) HandlePlaylists() ([]SpotifyItem, error) {
+	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(7))
+	if err != nil {
+		return nil, fmt.Errorf("could not get playlists: %w", err)
+	}
+
+	var results []SpotifyItem
+	for _, p := range page.Playlists {
+		var collaborative string
+		if p.Collaborative {
+			collaborative = "yes"
+		} else {
+			collaborative = "no"
+		}
+
+		metadata := []MetaItem{
+			{Label: "owner", Value: p.Owner.DisplayName},
+			{Label: "# tracks", Value: strconv.Itoa(int(p.Tracks.Total))},
+			{Label: "collaborative", Value: collaborative},
+		}
+
+		if p.Description != "" {
+			metadata = append(metadata, MetaItem{Label: "description", Value: p.Description})
+		}
+
+		results = append(results, SpotifyItem{
+			Type:           zmb.SearchTypePlaylist,
+			URI:            p.URI,
+			ID:             p.ID,
+			ShortViewItems: []string{p.Name, p.Owner.DisplayName},
+			LongView: Details{
+				Name:     p.Name,
+				Metadata: metadata,
+			},
+		})
+	}
 	return results, nil
 }
 
@@ -497,7 +574,7 @@ func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 	switch msg.Item.Type {
 	case zmb.SearchTypeTrack:
 		return c.playTrack(msg.Item.ID)
-	case zmb.SearchTypeAlbum, zmb.SearchTypeArtist:
+	case zmb.SearchTypeAlbum, zmb.SearchTypeArtist, zmb.SearchTypePlaylist:
 		return c.playFromContext(msg.Item.URI)
 	default:
 		return fmt.Errorf("playback not yet supported for type %v", msg.Item.Type)
@@ -513,13 +590,19 @@ type SpotifyItem struct {
 	Type           zmb.SearchType
 	URI            zmb.URI
 	ID             zmb.ID
+
+	// Items to show to user in small models. These should be important information.
+	// For example, the name and creator of a track/playlist/album.
 	ShortViewItems []string
 	LongView       Details
 }
 
 type Details struct {
-	Name     string
-	Metadata []MetaItem
+	Name             string
+	Metadata         []MetaItem
+	// TODO(feat): should we add a little "extra metadata" field? It's what ADK does for some types
+	// and we could use it to display, say, the if a playlist is collaborative or a song is explicit
+	// things people don't care about that much. Or we could put important navigation data (IDs or something)
 }
 
 type MetaItem struct {
