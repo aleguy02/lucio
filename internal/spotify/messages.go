@@ -5,16 +5,16 @@ import tea "charm.land/bubbletea/v2"
 type SpotifyCommand string
 
 const (
-	CmdPlay    SpotifyCommand = "PLAY"
-	CmdPause   SpotifyCommand = "PAUSE"
-	CmdSkipF   SpotifyCommand = "SKIPF"
-	CmdSkipB   SpotifyCommand = "SKIPB"
-	CmdSeekF   SpotifyCommand = "SEEKF"
-	CmdSeekB   SpotifyCommand = "SEEKB"
-	CmdSearch  SpotifyCommand = "SEARCH"
-	CmdDevices SpotifyCommand = "DEVICES"
+	CmdPlay      SpotifyCommand = "PLAY"
+	CmdPause     SpotifyCommand = "PAUSE"
+	CmdSkipF     SpotifyCommand = "SKIPF"
+	CmdSkipB     SpotifyCommand = "SKIPB"
+	CmdSeekF     SpotifyCommand = "SEEKF"
+	CmdSeekB     SpotifyCommand = "SEEKB"
+	CmdSearch    SpotifyCommand = "SEARCH"
+	CmdDevices   SpotifyCommand = "DEVICES"
 	CmdPlaylists SpotifyCommand = "PLAYLISTS"
-	CmdShuffle SpotifyCommand = "SHUFFLE"
+	CmdShuffle   SpotifyCommand = "SHUFFLE"
 )
 
 var validSpotifyCommands = map[SpotifyCommand]bool{

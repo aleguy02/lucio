@@ -194,7 +194,6 @@ func saveToken(tok *oauth2.Token) error {
 	return os.WriteFile(path, data, 0600)
 }
 
-
 /*
  * Internal Logic
  */
@@ -651,9 +650,9 @@ func (c *SpotifyClient) QueueSong(msg QueueMsg) error {
 
 // SpotifyItem is the shared representation of a Spotify entity used across the UI.
 type SpotifyItem struct {
-	Type           zmb.SearchType
-	URI            zmb.URI
-	ID             zmb.ID
+	Type zmb.SearchType
+	URI  zmb.URI
+	ID   zmb.ID
 
 	// Items to show to user in small models. These should be important information.
 	// For example, the name and creator of a track/playlist/album.
@@ -662,8 +661,8 @@ type SpotifyItem struct {
 }
 
 type Details struct {
-	Name             string
-	Metadata         []MetaItem
+	Name     string
+	Metadata []MetaItem
 	// TODO(feat): should we add a little "extra metadata" field? It's what ADK does for some types
 	// and we could use it to display, say, the if a playlist is collaborative or a song is explicit
 	// things people don't care about that much. Or we could put important navigation data (IDs or something)

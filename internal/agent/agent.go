@@ -205,7 +205,7 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 		Name:                "spotify_agent",
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
-		Instruction: "Always respond in fewer than 200 words.",
+		Instruction:         "Always respond in fewer than 200 words.",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create llm agent: %w", err)
