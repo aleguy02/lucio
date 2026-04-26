@@ -18,6 +18,8 @@ import (
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
+	"google.golang.org/adk/tool"
+	"google.golang.org/adk/tool/functiontool"
 	"google.golang.org/genai"
 
 	ollama "github.com/ollama/ollama/api"
@@ -42,6 +44,7 @@ type myLLM struct {
 func NewOllamaModel(modelName string, urlStr string) (*myLLM, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
+		fileLog.Printf("failed to parse url: %s", err)
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
 
@@ -52,6 +55,7 @@ func NewOllamaModel(modelName string, urlStr string) (*myLLM, error) {
 	} else {
 		client, err = ollama.ClientFromEnvironment()
 		if err != nil {
+			fileLog.Printf("failed create ollama client from environment: %s", err)
 			return nil, fmt.Errorf("failed create ollama client from environment: %w", err)
 		}
 	}
@@ -80,6 +84,74 @@ type callbackRes struct {
 	err error
 }
 
+func genaiSchemaToOllamaProperty(s *genai.Schema) ollama.ToolProperty {
+	if s == nil {
+		return ollama.ToolProperty{}
+	}
+
+	prop := ollama.ToolProperty{
+		Type:        ollama.PropertyType{strings.ToLower(string(s.Type))},
+		Description: s.Description,
+	}
+
+	if len(s.Enum) > 0 {
+		prop.Enum = make([]any, len(s.Enum))
+		for i, e := range s.Enum {
+			prop.Enum[i] = e
+		}
+	}
+
+	if len(s.AnyOf) > 0 {
+		prop.AnyOf = make([]ollama.ToolProperty, len(s.AnyOf))
+		for i, sub := range s.AnyOf {
+			prop.AnyOf[i] = genaiSchemaToOllamaProperty(sub)
+		}
+	}
+
+	if s.Items != nil {
+		items := genaiSchemaToOllamaProperty(s.Items)
+		prop.Items = items
+	}
+
+	if len(s.Properties) > 0 {
+		pm := ollama.NewToolPropertiesMap()
+		for name, sub := range s.Properties {
+			pm.Set(name, genaiSchemaToOllamaProperty(sub))
+		}
+		prop.Properties = pm
+		prop.Required = s.Required
+	}
+
+	return prop
+}
+
+func genaiDeclToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
+	t := ollama.Tool{
+		Type: "function",
+		Function: ollama.ToolFunction{
+			Name:        decl.Name,
+			Description: decl.Description,
+			Parameters: ollama.ToolFunctionParameters{
+				Type:       "object",
+				Properties: ollama.NewToolPropertiesMap(),
+			},
+		},
+	}
+
+	if decl.Parameters != nil {
+		if len(decl.Parameters.Properties) > 0 {
+			pm := ollama.NewToolPropertiesMap()
+			for name, sub := range decl.Parameters.Properties {
+				pm.Set(name, genaiSchemaToOllamaProperty(sub))
+			}
+			t.Function.Parameters.Properties = pm
+		}
+		t.Function.Parameters.Required = decl.Parameters.Required
+	}
+
+	return t
+}
+
 func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
 		ch := make(chan callbackRes)
@@ -90,11 +162,45 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			if role == "model" {
 				role = "assistant"
 			}
+
 			var text string
+			var toolCalls []ollama.ToolCall
+			var toolResponses []ollama.Message
+
 			for _, p := range c.Parts {
-				text += p.Text
+				switch {
+				case p.FunctionCall != nil:
+					args := ollama.NewToolCallFunctionArguments()
+					for k, v := range p.FunctionCall.Args {
+						args.Set(k, v)
+					}
+					toolCalls = append(toolCalls, ollama.ToolCall{
+						ID: p.FunctionCall.ID,
+						Function: ollama.ToolCallFunction{
+							Name:      p.FunctionCall.Name,
+							Arguments: args,
+						},
+					})
+				case p.FunctionResponse != nil:
+					content, _ := json.Marshal(p.FunctionResponse.Response)
+					toolResponses = append(toolResponses, ollama.Message{
+						Role:       "tool",
+						Content:    string(content),
+						ToolName:   p.FunctionResponse.Name,
+						ToolCallID: p.FunctionResponse.ID,
+					})
+				case !p.Thought:
+					text += p.Text
+				}
 			}
-			msgs = append(msgs, ollama.Message{Role: role, Content: text})
+
+			if len(toolResponses) > 0 {
+				msgs = append(msgs, toolResponses...)
+			} else if len(toolCalls) > 0 {
+				msgs = append(msgs, ollama.Message{Role: role, Content: text, ToolCalls: toolCalls})
+			} else {
+				msgs = append(msgs, ollama.Message{Role: role, Content: text})
+			}
 		}
 
 		// reinject system prompt into every interaction. It isn't part of the messages
@@ -116,6 +222,21 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		}
 
 		stream := true
+
+		var tools []ollama.Tool
+		if req.Config != nil {
+			for _, genaiTool := range req.Config.Tools {
+				if genaiTool == nil {
+					continue
+				}
+				for _, decl := range genaiTool.FunctionDeclarations {
+					if decl != nil {
+						tools = append(tools, genaiDeclToOllamaTool(decl))
+					}
+				}
+			}
+		}
+
 		oReq := &ollama.ChatRequest{
 			Model:    req.Model,
 			Messages: msgs,
@@ -123,41 +244,79 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				Value: true,
 			},
 			Stream: &stream,
+			Tools:  tools,
 		}
 
-		// Convert message content
-		// Convert tool calls
-		// Convert usage metadata
-		// pass messages to a channel from inside the respFunc, which is called for every streamed response?
 		var accumulated strings.Builder
+		var pendingToolCalls []ollama.ToolCall
+
 		respFunc := func(resp ollama.ChatResponse) error {
-			accumulated.WriteString(resp.Message.Content)
-			text := resp.Message.Content
+			fileLog.Printf("stream token: done=%v content=%q thinking=%q tool_calls=%d",
+				resp.Done, resp.Message.Content, resp.Message.Thinking, len(resp.Message.ToolCalls))
 
-			if resp.Done {
-				text = accumulated.String()
+			// Ollama sends tool calls in a non-done streaming token, then a bare
+			// done=true to close the stream. Collect them across all tokens.
+			if len(resp.Message.ToolCalls) > 0 {
+				pendingToolCalls = append(pendingToolCalls, resp.Message.ToolCalls...)
 			}
-			part := &genai.Part{Text: text}
 
-			res := model.LLMResponse{
+			if !resp.Done {
+				accumulated.WriteString(resp.Message.Content)
+				// Only forward non-empty tokens; skip thinking-only tokens.
+				if resp.Message.Content != "" {
+					ch <- callbackRes{res: model.LLMResponse{
+						Content: &genai.Content{
+							Parts: []*genai.Part{{Text: resp.Message.Content}},
+							Role:  "model",
+						},
+						Partial: true,
+					}}
+				}
+				return nil
+			}
+
+			// Done — emit tool calls if any, otherwise emit the accumulated text.
+			// Accumulated text is prepended when the model prefixes a tool call
+			// with visible content so the full turn is preserved in session history.
+			if len(pendingToolCalls) > 0 {
+				var parts []*genai.Part
+				if preamble := accumulated.String(); preamble != "" {
+					parts = append(parts, &genai.Part{Text: preamble})
+				}
+				for _, tc := range pendingToolCalls {
+					args := tc.Function.Arguments.ToMap()
+					fileLog.Printf("dispatching tool call: %s(%v)", tc.Function.Name, args)
+					parts = append(parts, genai.NewPartFromFunctionCall(tc.Function.Name, args))
+				}
+				ch <- callbackRes{res: model.LLMResponse{
+					Content:      &genai.Content{Parts: parts, Role: "model"},
+					TurnComplete: true,
+				}}
+				return nil
+			}
+
+			text := accumulated.String()
+			// Some models route their entire response into Thinking and leave
+			// Content empty. Fall back so the reply is never silently blank.
+			if text == "" && resp.Message.Thinking != "" {
+				fileLog.Printf("content empty, falling back to thinking text (%d chars)", len(resp.Message.Thinking))
+				text = resp.Message.Thinking
+			}
+			ch <- callbackRes{res: model.LLMResponse{
 				Content: &genai.Content{
-					Parts: []*genai.Part{part},
+					Parts: []*genai.Part{{Text: text}},
 					Role:  "model",
 				},
-				Partial:      !resp.Done,
-				TurnComplete: resp.Done,
-			}
-
-			ch <- callbackRes{
-				res: res,
-				err: nil,
-			}
-
+				TurnComplete: true,
+			}}
 			return nil
 		}
 		go func() {
-			if err := m.client.Chat(ctx, oReq, respFunc); err != nil {
+			err := m.client.Chat(ctx, oReq, respFunc)
+			if err != nil {
 				ch <- callbackRes{err: err}
+			} else {
+				fileLog.Printf("chat completed successfully")
 			}
 			close(ch)
 		}()
@@ -168,6 +327,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				break
 			}
 			if res.err != nil {
+				fileLog.Printf("received error from channel: %s", res.err)
 				yield(nil, res.err)
 				return
 			}
@@ -183,31 +343,52 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 	llm, err := NewOllamaModel(modelName, urlStr)
 	if err != nil {
+		fileLog.Printf("failed to create ollama model: %s", err)
 		return nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
 	// TODO(bug): sometimes newlines render extra tall sometimes not. It makes the agent response look messed up
 	// this is a temporary fix to clamp extra newlines to mitigate the issue
 	doubleNewline := regexp.MustCompile(`\n\n+`)
+	// The ADK treats a non-nil return as "override the response"; return nil when
+	// making no structural changes so the normal path is taken for tool-call events.
 	collapseNewlines := func(_ agent.CallbackContext, resp *model.LLMResponse, respErr error) (*model.LLMResponse, error) {
 		if respErr != nil || resp == nil || resp.Content == nil {
-			return resp, respErr
+			return nil, respErr
 		}
+		modified := false
 		for _, p := range resp.Content.Parts {
-			p.Text = doubleNewline.ReplaceAllString(p.Text, "\n")
+			collapsed := doubleNewline.ReplaceAllString(p.Text, "\n")
+			if collapsed != p.Text {
+				p.Text = collapsed
+				modified = true
+			}
+		}
+		if !modified {
+			return nil, nil
 		}
 		return resp, nil
 	}
 
-	// TODO(improvement):
-	// 	- add compaction depending on yaml file
+	jokeTool, err := functiontool.New(
+		functiontool.Config{
+			Name: "getChuckNorrisJoke",
+			Description: "Get a joke about Chuck Norris",
+		}, getChuckNorrisJoke)
+
+	// TODO(improvement, not planned):
+	// 	- add compaction depending on yaml file. Why not planned: This is unecessary because the user should just be able to /clear
 	ag, err := llmagent.New(llmagent.Config{
-		Name:                "spotify_agent",
+		Name:                "Lucio",
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
-		Instruction:         "Always respond in fewer than 200 words.",
+		Instruction:         "You are Lucio, a Spotify vibe-curator and DJ.",
+		Tools: []tool.Tool{
+			jokeTool,
+		},
 	})
 	if err != nil {
+		fileLog.Printf("failed to create llm agent: %s", err)
 		return nil, fmt.Errorf("failed to create llm agent: %w", err)
 	}
 
@@ -218,8 +399,11 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 		AutoCreateSession: true,
 	})
 	if err != nil {
+		fileLog.Printf("failed to create runner: %s", err)
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
 
 	return r, nil
 }
+
+// TODO(test): how do I test this shi
