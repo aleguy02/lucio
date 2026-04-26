@@ -90,16 +90,15 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 		if event == nil || event.Content == nil || event.Author == "user" {
 			continue
 		}
-		var chunk string
 		for _, part := range event.Content.Parts {
-			chunk += part.Text
-		}
-		done := !event.Partial
-		if chunk != "" || done {
-			streamCh <- ui.AgentChunkMsg{Text: chunk, Done: done}
-		}
-		if done {
-			return
+			switch {
+			case part.FunctionCall != nil:
+				streamCh <- ui.AgentChunkMsg{ToolName: part.FunctionCall.Name}
+			case part.Text != "" && event.Partial:
+				// Only forward partial (streaming) tokens; the final non-partial event
+				// contains the same text fully accumulated — forwarding it would duplicate.
+				streamCh <- ui.AgentChunkMsg{Text: part.Text}
+			}
 		}
 	}
 	streamCh <- ui.AgentChunkMsg{Done: true}

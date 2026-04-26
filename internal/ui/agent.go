@@ -18,12 +18,11 @@ const (
 	SenderAgent
 )
 
-// Message is the base chat unit. User messages are bare text (the "bare" variant).
-// SenderAgent is scaffolded for extension with tool-call UI in the future.
+// Message is the base chat unit.
 type Message struct {
-	Sender  MessageSender
-	Content string
-	// Future: ToolResults []AgentToolResult
+	Sender    MessageSender
+	Content   string
+	ToolCalls []string
 }
 
 const maxChatMessages = 15
@@ -72,17 +71,19 @@ var (
 	userMsgTextStyle   = lipgloss.NewStyle().Foreground(ColorLightGrey)
 	agentMsgLabelStyle = lipgloss.NewStyle().Foreground(ColorSpotifyGreen).Bold(true)
 	agentMsgTextStyle  = lipgloss.NewStyle().Foreground(ColorWhite)
+	toolCallStyle      = lipgloss.NewStyle().Foreground(ColorLightYellow)
 )
 
 type agentChatModel struct {
-	messages          []Message
-	streamAccumulator string
-	isResponding      bool
-	viewport          viewport.Model
-	input             textinput.Model
-	keys              agentChatKeyMap
-	width             int
-	height            int
+	messages           []Message
+	streamAccumulator  string
+	streamToolCalls    []string
+	isResponding       bool
+	viewport           viewport.Model
+	input              textinput.Model
+	keys               agentChatKeyMap
+	width              int
+	height             int
 }
 
 func newAgentChatModel() agentChatModel {
@@ -121,10 +122,10 @@ func (c agentChatModel) renderMessages() string {
 	}
 	if c.isResponding {
 		content := c.streamAccumulator
-		if content == "" {
+		if content == "" && len(c.streamToolCalls) == 0 {
 			content = "..."
 		}
-		lines = append(lines, renderMessage(Message{Sender: SenderAgent, Content: content}))
+		lines = append(lines, renderMessage(Message{Sender: SenderAgent, Content: content, ToolCalls: c.streamToolCalls}))
 	}
 	if len(lines) == 0 {
 		return ""
@@ -132,13 +133,16 @@ func (c agentChatModel) renderMessages() string {
 	return strings.Join(lines, "\n")
 }
 
-// Agent messages share the same structure but use distinct styling and are
-// designed to be extended (e.g. tool result blocks below the content line).
 func renderMessage(msg Message) string {
 	switch msg.Sender {
 	case SenderAgent:
 		label := agentMsgLabelStyle.Render("lucio")
-		return label + "\n" + agentMsgTextStyle.Render(msg.Content)
+		out := label
+		for _, name := range msg.ToolCalls {
+			out += "\n" + toolCallStyle.Render("+ "+name)
+		}
+		out += "\n" + agentMsgTextStyle.Render(msg.Content)
+		return out
 	default:
 		label := userMsgLabelStyle.Render("you")
 		return label + "\n" + userMsgTextStyle.Render(msg.Content)
@@ -162,20 +166,28 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 				c.messages = c.messages[len(c.messages)-maxChatMessages:]
 			}
 			c.streamAccumulator = ""
+			c.streamToolCalls = nil
 			c.isResponding = false
 		} else {
+			if msg.ToolName != "" {
+				c.streamToolCalls = append(c.streamToolCalls, msg.ToolName)
+			}
 			if !msg.Done {
 				c.streamAccumulator += msg.Text
 			}
-
 			if msg.Done {
-				if c.streamAccumulator != "" {
-					c.messages = append(c.messages, Message{Sender: SenderAgent, Content: c.streamAccumulator})
+				if c.streamAccumulator != "" || len(c.streamToolCalls) > 0 {
+					c.messages = append(c.messages, Message{
+						Sender:    SenderAgent,
+						Content:   c.streamAccumulator,
+						ToolCalls: c.streamToolCalls,
+					})
 					if len(c.messages) > maxChatMessages {
 						c.messages = c.messages[len(c.messages)-maxChatMessages:]
 					}
 				}
 				c.streamAccumulator = ""
+				c.streamToolCalls = nil
 				c.isResponding = false
 			}
 		}
