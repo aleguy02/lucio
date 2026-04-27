@@ -173,6 +173,11 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.alert = ""
 		return m, nil
 
+	// case sp.LikeSuccessMsg:
+	// 	m.successAlert = string(msg)
+	// 	m.alert = ""
+	// 	return m, nil
+
 	case gestures.GestureClientExitedMsg:
 		m.modalitiesList.Modalities[0].Enabled = false
 		return m, nil
@@ -348,6 +353,14 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.spotifyItemPrev = menuMode
 					m.state = spotifyItemMode
 					return m, nil
+
+				// case "like":
+				// 	track := m.nowPlaying.playback.Track
+				// 	if track.ID == "" {
+				// 		m.alert = "no track currently playing"
+				// 		return m, nil
+				// 	}
+				// 	return m, sp.SpotifyActionCmd(sp.SpotifyActionMsg{Command: sp.CmdLike, Arg: string(track.ID)})
 
 				case "theme":
 					if len(parts) < 2 {

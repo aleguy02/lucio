@@ -55,6 +55,7 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 			spotifyauth.ScopeUserReadPlaybackState,
 			spotifyauth.ScopePlaylistReadPrivate,
 			spotifyauth.ScopePlaylistReadCollaborative,
+			// spotifyauth.ScopeUserLibraryModify,
 		),
 	)
 
@@ -492,19 +493,35 @@ func parseSeconds(arg string) (int, error) {
 }
 
 func (c *SpotifyClient) play() error {
-	return c.client.Play(context.Background())
+	err := c.client.Play(context.Background())
+	if err != nil {
+		logger.Printf("play: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) pause() error {
-	return c.client.Pause(context.Background())
+	err := c.client.Pause(context.Background())
+	if err != nil {
+		logger.Printf("pause: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) skipForward() error {
-	return c.client.Next(context.Background())
+	err := c.client.Next(context.Background())
+	if err != nil {
+		logger.Printf("skipForward: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) skipBack() error {
-	return c.client.Previous(context.Background())
+	err := c.client.Previous(context.Background())
+	if err != nil {
+		logger.Printf("skipBack: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) seekForward(s int) error {
@@ -516,11 +533,19 @@ func (c *SpotifyClient) seekForward(s int) error {
 	if state.Item != nil && newPos > int(state.Item.Duration) {
 		newPos = int(state.Item.Duration)
 	}
-	return c.client.Seek(context.Background(), newPos)
+	err = c.client.Seek(context.Background(), newPos)
+	if err != nil {
+		logger.Printf("seekForward: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) toggleShuffle(curShuffleState bool) error {
-	return c.client.Shuffle(context.Background(), curShuffleState)
+	err := c.client.Shuffle(context.Background(), curShuffleState)
+	if err != nil {
+		logger.Printf("toggleShuffle: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) seekBack(s int) error {
@@ -532,7 +557,11 @@ func (c *SpotifyClient) seekBack(s int) error {
 	if newPos < 0 {
 		newPos = 0
 	}
-	return c.client.Seek(context.Background(), newPos)
+	err = c.client.Seek(context.Background(), newPos)
+	if err != nil {
+		logger.Printf("seekBack: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) search(query string, t zmb.SearchType, offset int) (*zmb.SearchResult, error) {
@@ -628,9 +657,13 @@ func (c *SpotifyClient) playTrack(id zmb.ID) error {
 }
 
 func (c *SpotifyClient) playFromContext(uri zmb.URI) error {
-	return c.client.PlayOpt(context.Background(), &zmb.PlayOptions{
+	err := c.client.PlayOpt(context.Background(), &zmb.PlayOptions{
 		PlaybackContext: &uri,
 	})
+	if err != nil {
+		logger.Printf("playFromContext: %v", err)
+	}
+	return err
 }
 
 func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
@@ -645,8 +678,20 @@ func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 }
 
 func (c *SpotifyClient) QueueSong(msg QueueMsg) error {
-	return c.client.QueueSong(context.Background(), zmb.ID(msg.Id))
+	err := c.client.QueueSong(context.Background(), zmb.ID(msg.Id))
+	if err != nil {
+		logger.Printf("QueueSong %q: %v", msg.Id, err)
+	}
+	return err
 }
+
+// func (c *SpotifyClient) LikeTrack(id string) error {
+// 	err := c.client.AddTracksToLibrary(context.Background(), zmb.ID(id))
+// 	if err != nil {
+// 		logger.Printf("LikeTrack %q: %v", id, err)
+// 	}
+// 	return err
+// }
 
 // SpotifyItem is the shared representation of a Spotify entity used across the UI.
 type SpotifyItem struct {

@@ -15,6 +15,7 @@ const (
 	CmdDevices   SpotifyCommand = "DEVICES"
 	CmdPlaylists SpotifyCommand = "PLAYLISTS"
 	CmdShuffle   SpotifyCommand = "SHUFFLE"
+	// CmdLike      SpotifyCommand = "LIKE"
 )
 
 var validSpotifyCommands = map[SpotifyCommand]bool{
@@ -60,3 +61,5 @@ type QueueSuccessMsg string
 
 // DevicesResultMsg carries the comma-separated list of available Spotify devices.
 type DevicesResultMsg string
+
+// type LikeSuccessMsg string

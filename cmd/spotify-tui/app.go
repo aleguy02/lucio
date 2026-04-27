@@ -137,6 +137,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				gestures.WaitForGestureCmd(m.gestureChan),
 			)
 		}
+		// if msg.Command == sp.CmdLike {
+		// 	if err := m.spotifyClient.LikeTrack(msg.Arg); err != nil {
+		// 		errMsg := sp.SpotifyRouteErrorMsg(err.Error())
+		// 		return m, tea.Batch(func() tea.Msg { return errMsg }, gestures.WaitForGestureCmd(m.gestureChan))
+		// 	}
+		// 	return m, tea.Batch(
+		// 		func() tea.Msg { return sp.LikeSuccessMsg("added to liked songs") },
+		// 		gestures.WaitForGestureCmd(m.gestureChan),
+		// 	)
+		// }
 		result, err := m.spotifyClient.Route(msg)
 		if err != nil {
 			errMsg := sp.SpotifyRouteErrorMsg(err.Error())

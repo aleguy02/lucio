@@ -46,6 +46,10 @@ func (c *SpotifyClient) myNewMethod(...) error {
 }
 ```
 
+### zmb stays inside the spotify package
+
+`zmb` types (`zmb.ID`, `zmb.URI`, etc.) must **never** appear in `app.go` or `internal/ui`. Only `internal/spotify` imports `github.com/zmb3/spotify/v2`. Methods on `SpotifyClient` that are called from outside the package must accept plain Go types (`string`, etc.) and do the `zmb.ID(...)` / `zmb.URI(...)` conversion internally.
+
 ### Key zmb types used in this codebase
 
 | zmb type | Used for |
@@ -79,6 +83,10 @@ type Details struct {
 
 type MetaItem struct{ Label, Value string }
 ```
+
+### Prefer cached playback state over extra API calls
+
+`app.go` runs a tick loop (`doTick`) that fetches `PlaybackState` and broadcasts it as `SpotifyPlaybackStateMsg`. The current track is available in the UI as `m.nowPlaying.playback.Track` (ID, URI, name, etc.). Before adding a `PlayerState(...)` call to a new `SpotifyClient` method, check whether the needed data can be passed in from the already-known state — either as an argument to the method or embedded in the `SpotifyActionMsg.Arg`. This avoids a redundant API round-trip.
 
 ### Adding a new search type
 
