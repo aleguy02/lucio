@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
 	myagent "aleguy02/spotify-tui/internal/agent"
+	"aleguy02/spotify-tui/internal/spotify"
 
 	"google.golang.org/adk/agent"
 	"google.golang.org/genai"
@@ -21,7 +23,12 @@ const (
 )
 
 func main() {
-	runner, err := myagent.NewRunner(modelName, ollamaURL)
+	client, err := spotify.NewSpotifyClient()
+	if err != nil {
+		log.Fatal("Spotify setup failed: ", err)
+	}
+
+	runner, err := myagent.NewRunner(modelName, ollamaURL, client)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create runner: %v\n", err)
 		os.Exit(1)

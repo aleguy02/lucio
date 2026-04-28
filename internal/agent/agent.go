@@ -22,6 +22,8 @@ import (
 	"google.golang.org/adk/tool/functiontool"
 	"google.golang.org/genai"
 
+	sp "aleguy02/spotify-tui/internal/spotify"
+
 	ollama "github.com/ollama/ollama/api"
 )
 
@@ -340,7 +342,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 }
 
 // NewRunner creates a ready-to-use ADK runner backed by Ollama with an in-memory session.
-func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
+func NewRunner(modelName, urlStr string, client *sp.SpotifyClient) (*runner.Runner, error) {
 	llm, err := NewOllamaModel(modelName, urlStr)
 	if err != nil {
 		fileLog.Printf("failed to create ollama model: %s", err)
@@ -372,9 +374,23 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 
 	jokeTool, err := functiontool.New(
 		functiontool.Config{
-			Name: "getChuckNorrisJoke",
+			Name:        "getChuckNorrisJoke",
 			Description: "Get a joke about Chuck Norris",
 		}, getChuckNorrisJoke)
+	if err != nil {
+		fileLog.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	skipfTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifySkipTrack",
+			Description: "Skip the current song/track playing in Spotify",
+		}, client.SkipfWrapper)
+	if err != nil {
+		fileLog.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
 
 	// TODO(improvement, not planned):
 	// 	- add compaction depending on yaml file. Why not planned: This is unecessary because the user should just be able to /clear
@@ -382,9 +398,10 @@ func NewRunner(modelName, urlStr string) (*runner.Runner, error) {
 		Name:                "Lucio",
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
-		Instruction:         "You are Lucio, a Spotify vibe-curator and DJ.",
+		Instruction:         "You are Lucio, a Spotify vibe-curator and DJ. You have access to tools to interact with Spotify. You are being used in a live stateful session so the output of tools may not be the same twice in a row, thus you are encouraged to retry tools.",
 		Tools: []tool.Tool{
 			jokeTool,
+			skipfTool,
 		},
 	})
 	if err != nil {

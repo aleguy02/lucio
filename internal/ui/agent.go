@@ -75,15 +75,15 @@ var (
 )
 
 type agentChatModel struct {
-	messages           []Message
-	streamAccumulator  string
-	streamToolCalls    []string
-	isResponding       bool
-	viewport           viewport.Model
-	input              textinput.Model
-	keys               agentChatKeyMap
-	width              int
-	height             int
+	messages          []Message
+	streamAccumulator string
+	streamToolCalls   []string
+	isResponding      bool
+	viewport          viewport.Model
+	input             textinput.Model
+	keys              agentChatKeyMap
+	width             int
+	height            int
 }
 
 func newAgentChatModel() agentChatModel {

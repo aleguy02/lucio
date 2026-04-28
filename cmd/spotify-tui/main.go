@@ -29,7 +29,7 @@ func main() {
 		log.Fatal("Spotify setup failed: ", err)
 	}
 
-	agentRunner, err := myagent.NewRunner("gemma4:e2b", "")
+	agentRunner, err := myagent.NewRunner("gemma4:e2b", "", client)
 	if err != nil {
 		log.Fatal("Agent setup failed: ", err)
 	}

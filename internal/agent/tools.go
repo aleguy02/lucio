@@ -2,9 +2,8 @@ package agent
 
 import "google.golang.org/adk/tool"
 
-
 type getChuckNorrisJokeResult struct {
-	Joke string		`json:"joke"`
+	Joke string `json:"joke"`
 }
 
 func getChuckNorrisJoke(ctx tool.Context, _ struct{}) (getChuckNorrisJokeResult, error) {

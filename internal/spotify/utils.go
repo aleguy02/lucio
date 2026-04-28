@@ -9,8 +9,6 @@ import (
 	zmb "github.com/zmb3/spotify/v2"
 )
 
-// TODO(current): put the lowercase functions with the logging here
-
 func parseSeconds(arg string) (int, error) {
 	if strings.TrimSpace(arg) == "" {
 		return 0, fmt.Errorf("seconds argument is required")
