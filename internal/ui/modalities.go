@@ -81,8 +81,6 @@ func NewModalities() ModalitiesModel {
 		fig = figure.NewFigureWithFont("LUC!O", file, true)
 	}
 
-	accentGray := lipgloss.Color("#282828")
-
 	return ModalitiesModel{
 		Modalities: []Modality{
 			{ID: "gestures", Name: "HAND GESTURES", Description: "Playback control via hand gestures", Enabled: false},
@@ -91,14 +89,14 @@ func NewModalities() ModalitiesModel {
 		},
 		Keys: defaultModalitiesKeyMap(),
 		SelectedStyle: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(ColorSpotifyGreen).
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(ColorWhite).
 			Padding(1, 2).
 			Width(25).
-			Height(8).
-			Background(accentGray),
+			Height(8),
+			// Background(lipgloss.Color("#282828")),
 		NormalStyle: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), true).
+			Border(lipgloss.NormalBorder()).
 			BorderForeground(ColorDarkGray).
 			Padding(1, 2).
 			Width(25).
@@ -148,15 +146,14 @@ func (m ModalitiesModel) View() tea.View {
 	for i, mod := range m.Modalities {
 		var status string
 		if mod.Enabled {
-			status = m.EnabledStyle.Render("● ACTIVE")
+			status = m.EnabledStyle.Render("active")
 		} else {
-			status = m.DisabledStyle.Render("○ INACTIVE")
+			status = m.DisabledStyle.Render("inactive")
 		}
 
 		cardContent := lipgloss.JoinVertical(
 			lipgloss.Left,
 			m.TitleStyle.Render(mod.Name),
-			"",
 			status,
 			"",
 			m.DescStyle.Render(mod.Description),
