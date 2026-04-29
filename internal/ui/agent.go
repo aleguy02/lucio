@@ -111,7 +111,8 @@ func (c *agentChatModel) resize() {
 	c.viewport.SetHeight(vpH)
 	c.viewport.SetWidth(c.width)
 	// outer width is c.width; border(-2) and padding(-2) give content width of c.width-4
-	c.input.SetWidth(max(1, c.width-4))
+	promptW := lipgloss.Width(c.input.Prompt)
+	c.input.SetWidth(max(1, c.width-5-promptW))
 	c.viewport.SetContent(c.renderMessages())
 }
 
