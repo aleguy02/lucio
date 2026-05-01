@@ -21,51 +21,64 @@ import (
 	"google.golang.org/adk/tool"
 	"google.golang.org/adk/tool/functiontool"
 	"google.golang.org/genai"
+	"gopkg.in/yaml.v3"
 
 	sp "aleguy02/spotify-tui/internal/spotify"
 
 	ollama "github.com/ollama/ollama/api"
 )
 
-var fileLog *log.Logger
+var logger *log.Logger
+var confPath = "conf.yaml"
 
 func init() {
 	f, err := os.OpenFile(filepath.Join("logs", "agent.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("failed to open log file: %v", err)
 	}
-	fileLog = log.New(f, "", log.LstdFlags)
+	logger = log.New(f, "", log.LstdFlags)
+}
+
+type agentConf struct {
+	ModelName      string `yaml:"model"`
+	ModelURL       string `yaml:"model_url"`
+	VerboseLogging bool   `yaml:"verbose_logging"`
+	Thinking       bool   `yaml:"thinking"`
 }
 
 type myLLM struct {
-	client   *ollama.Client
-	modelStr string
-	name     string
+	client          *ollama.Client
+	modelStr        string
+	name            string
+	logTokens       bool
+	thinkingEnabled bool
 }
 
-func NewOllamaModel(modelName string, urlStr string) (*myLLM, error) {
-	u, err := url.Parse(urlStr)
+func NewOllamaModel(c agentConf) (*myLLM, error) {
+	u, err := url.Parse(c.ModelURL)
 	if err != nil {
-		fileLog.Printf("failed to parse url: %s", err)
+		logger.Printf("failed to parse url: %s", err)
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
 
 	var client *ollama.Client
-	if urlStr != "" {
+	if c.ModelURL != "" {
 		c := &http.Client{}
 		client = ollama.NewClient(u, c) // TODO: what happens if the url string parses correctly but is wrong?
 	} else {
 		client, err = ollama.ClientFromEnvironment()
 		if err != nil {
-			fileLog.Printf("failed create ollama client from environment: %s", err)
+			logger.Printf("failed create ollama client from environment: %s", err)
 			return nil, fmt.Errorf("failed create ollama client from environment: %w", err)
 		}
 	}
 
 	return &myLLM{
-		client:   client,
-		modelStr: modelName,
-		name:     modelName,
+		client:          client,
+		modelStr:        c.ModelName,
+		name:            c.ModelName,
+		logTokens:       c.VerboseLogging,
+		thinkingEnabled: c.Thinking,
 	}, nil
 }
 
@@ -220,7 +233,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 
 		// TODO(debug): remove in prod. Also there should be more logs for the agent I'll add those somewhere eventually
 		if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
-			fileLog.Printf("message history:\n%s", b)
+			logger.Printf("message history:\n%s", b)
 		}
 
 		stream := true
@@ -243,7 +256,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			Model:    req.Model,
 			Messages: msgs,
 			Think: &ollama.ThinkValue{
-				Value: true,
+				Value: m.thinkingEnabled,
 			},
 			Stream: &stream,
 			Tools:  tools,
@@ -253,8 +266,10 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		var pendingToolCalls []ollama.ToolCall
 
 		respFunc := func(resp ollama.ChatResponse) error {
-			fileLog.Printf("stream token: done=%v content=%q thinking=%q tool_calls=%d",
-				resp.Done, resp.Message.Content, resp.Message.Thinking, len(resp.Message.ToolCalls))
+			if m.logTokens {
+				logger.Printf("stream token: done=%v content=%q thinking=%q tool_calls=%d",
+					resp.Done, resp.Message.Content, resp.Message.Thinking, len(resp.Message.ToolCalls))
+			}
 
 			// Ollama sends tool calls in a non-done streaming token, then a bare
 			// done=true to close the stream. Collect them across all tokens.
@@ -287,7 +302,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				}
 				for _, tc := range pendingToolCalls {
 					args := tc.Function.Arguments.ToMap()
-					fileLog.Printf("dispatching tool call: %s(%v)", tc.Function.Name, args)
+					logger.Printf("dispatching tool call: %s(%v)", tc.Function.Name, args)
 					parts = append(parts, genai.NewPartFromFunctionCall(tc.Function.Name, args))
 				}
 				ch <- callbackRes{res: model.LLMResponse{
@@ -301,8 +316,8 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			// Some models route their entire response into Thinking and leave
 			// Content empty. Fall back so the reply is never silently blank.
 			if text == "" && resp.Message.Thinking != "" {
-				fileLog.Printf("content empty, falling back to thinking text (%d chars)", len(resp.Message.Thinking))
-				text = resp.Message.Thinking
+				logger.Printf("content empty, falling back to thinking text (%d chars)", len(resp.Message.Thinking))
+				text = "[WARNING]: content was empty, falling back to thinking text\n" + resp.Message.Thinking
 			}
 			ch <- callbackRes{res: model.LLMResponse{
 				Content: &genai.Content{
@@ -318,7 +333,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			if err != nil {
 				ch <- callbackRes{err: err}
 			} else {
-				fileLog.Printf("chat completed successfully")
+				logger.Printf("chat completed successfully")
 			}
 			close(ch)
 		}()
@@ -329,7 +344,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				break
 			}
 			if res.err != nil {
-				fileLog.Printf("received error from channel: %s", res.err)
+				logger.Printf("received error from channel: %s", res.err)
 				yield(nil, res.err)
 				return
 			}
@@ -342,10 +357,27 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 }
 
 // NewRunner creates a ready-to-use ADK runner backed by Ollama with an in-memory session.
-func NewRunner(modelName, urlStr string, client *sp.SpotifyClient) (*runner.Runner, error) {
-	llm, err := NewOllamaModel(modelName, urlStr)
+func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
+	data, err := os.ReadFile(confPath)
 	if err != nil {
-		fileLog.Printf("failed to create ollama model: %s", err)
+		logger.Printf("error reading file: %v", err)
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	c := agentConf{}
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		logger.Printf("could not unmarshal yaml: %v", err)
+		return nil, fmt.Errorf("could not unmarshal yaml: %w", err)
+	}
+
+	if c.ModelName == "" {
+		logger.Printf("model must be set")
+		return nil, fmt.Errorf("model must be set")
+	}
+
+	llm, err := NewOllamaModel(c)
+	if err != nil {
+		logger.Printf("failed to create ollama model: %s", err)
 		return nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
@@ -378,7 +410,7 @@ func NewRunner(modelName, urlStr string, client *sp.SpotifyClient) (*runner.Runn
 			Description: "Get a joke about Chuck Norris",
 		}, getChuckNorrisJoke)
 	if err != nil {
-		fileLog.Printf("failed to create function tool: %s", err)
+		logger.Printf("failed to create function tool: %s", err)
 		return nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
@@ -388,7 +420,7 @@ func NewRunner(modelName, urlStr string, client *sp.SpotifyClient) (*runner.Runn
 			Description: "Skip the current song/track playing in Spotify",
 		}, client.SkipfWrapper)
 	if err != nil {
-		fileLog.Printf("failed to create function tool: %s", err)
+		logger.Printf("failed to create function tool: %s", err)
 		return nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
@@ -405,7 +437,7 @@ func NewRunner(modelName, urlStr string, client *sp.SpotifyClient) (*runner.Runn
 		},
 	})
 	if err != nil {
-		fileLog.Printf("failed to create llm agent: %s", err)
+		logger.Printf("failed to create llm agent: %s", err)
 		return nil, fmt.Errorf("failed to create llm agent: %w", err)
 	}
 
@@ -416,7 +448,7 @@ func NewRunner(modelName, urlStr string, client *sp.SpotifyClient) (*runner.Runn
 		AutoCreateSession: true,
 	})
 	if err != nil {
-		fileLog.Printf("failed to create runner: %s", err)
+		logger.Printf("failed to create runner: %s", err)
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
 

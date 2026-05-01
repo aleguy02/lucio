@@ -1,8 +1,9 @@
-spotify_client_id:
-spotify_client_secret:
-spotify_redirect_uri: http://127.0.0.1:3000/callback
+spotify_client_id: # required
+spotify_client_secret: # required
+spotify_redirect_uri: # required
 
-thinking: true
-model: 
+model: gemma4:e4b # required
 model_url: null
-verbose_logging: true
+thinking: true
+# Set verbose_logging to true if you want to log every token streamed from the LLM. Recommended only for debugging
+verbose_logging: false
