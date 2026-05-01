@@ -1,6 +1,0 @@
-# TODO(docs): add docs for this
-# also, the TUI should support as many models as ADK supports
-model_provider: "ollama"
-thinking: true
-model_url: null
-verbose_logging: true

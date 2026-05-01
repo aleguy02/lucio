@@ -94,7 +94,7 @@ func NewModalities() ModalitiesModel {
 			Padding(1, 2).
 			Width(25).
 			Height(8),
-			// Background(lipgloss.Color("#282828")),
+		// Background(lipgloss.Color("#282828")),
 		NormalStyle: lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(ColorDarkGray).

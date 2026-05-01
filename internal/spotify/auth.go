@@ -16,7 +16,16 @@ import (
 	zmb "github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
+	"gopkg.in/yaml.v3"
 )
+
+var confPath = "conf.yaml"
+
+type spotifyConf struct {
+	ClientID     string `yaml:"spotify_client_id"`
+	ClientSecret string `yaml:"spotify_client_secret"`
+	RedirectURI  string `yaml:"spotify_redirect_uri"`
+}
 
 var logger *log.Logger
 
@@ -33,21 +42,27 @@ type SpotifyClient struct {
 }
 
 func NewSpotifyClient() (*SpotifyClient, error) {
-	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
-	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
-	redirectURI := os.Getenv("SPOTIFY_REDIRECT_URI")
-	if redirectURI == "" {
-		redirectURI = "http://127.0.0.1:3000/callback"
+	data, err := os.ReadFile(confPath)
+	if err != nil {
+		logger.Printf("error reading file: %v", err)
+		return nil, fmt.Errorf("error reading file: %w", err)
 	}
 
-	if clientID == "" || clientSecret == "" {
-		return nil, fmt.Errorf("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+	c := spotifyConf{}
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		logger.Printf("could not unmarshal yaml: %v", err)
+		return nil, fmt.Errorf("could not unmarshal yaml: %w", err)
+	}
+
+	if c.ClientID == "" || c.ClientSecret == "" || c.RedirectURI == "" {
+		logger.Printf("spotify_client_id, spotify_client_secret, and spotify_redirect_uri must be set")
+		return nil, fmt.Errorf("spotify_client_id, spotify_client_secret, and spotify_redirect_uri must be set")
 	}
 
 	auth := spotifyauth.New(
-		spotifyauth.WithClientID(clientID),
-		spotifyauth.WithClientSecret(clientSecret),
-		spotifyauth.WithRedirectURL(redirectURI),
+		spotifyauth.WithClientID(c.ClientID),
+		spotifyauth.WithClientSecret(c.ClientSecret),
+		spotifyauth.WithRedirectURL(c.RedirectURI),
 		spotifyauth.WithScopes(
 			spotifyauth.ScopeUserModifyPlaybackState,
 			spotifyauth.ScopeUserReadPlaybackState,
@@ -62,8 +77,9 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 		return &SpotifyClient{client: zmb.New(httpClient)}, nil
 	}
 
-	client, err := runOAuthFlow(auth, redirectURI)
+	client, err := runOAuthFlow(auth, c.RedirectURI)
 	if err != nil {
+		logger.Printf("authentication failed: %v", err)
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 	return &SpotifyClient{client: client}, nil

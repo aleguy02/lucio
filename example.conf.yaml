@@ -1,0 +1,8 @@
+spotify_client_id:
+spotify_client_secret:
+spotify_redirect_uri: http://127.0.0.1:3000/callback
+
+thinking: true
+model: 
+model_url: null
+verbose_logging: true
