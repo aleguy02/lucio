@@ -50,7 +50,7 @@ type myLLM struct {
 	client          *ollama.Client
 	modelStr        string
 	name            string
-	logTokens       bool
+	verboseLogging       bool
 	thinkingEnabled bool
 }
 
@@ -77,7 +77,7 @@ func NewOllamaModel(c agentConf) (*myLLM, error) {
 		client:          client,
 		modelStr:        c.ModelName,
 		name:            c.ModelName,
-		logTokens:       c.VerboseLogging,
+		verboseLogging:       c.VerboseLogging,
 		thinkingEnabled: c.Thinking,
 	}, nil
 }
@@ -146,22 +146,44 @@ func genaiDeclToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 		Function: ollama.ToolFunction{
 			Name:        decl.Name,
 			Description: decl.Description,
-			Parameters: ollama.ToolFunctionParameters{
-				Type:       "object",
-				Properties: ollama.NewToolPropertiesMap(),
-			},
 		},
 	}
 
-	if decl.Parameters != nil {
-		if len(decl.Parameters.Properties) > 0 {
-			pm := ollama.NewToolPropertiesMap()
-			for name, sub := range decl.Parameters.Properties {
-				pm.Set(name, genaiSchemaToOllamaProperty(sub))
+	// TODO(bug): The properties don't seem to be actually propagating to the model. I'm hacking around by telling the model the properties when I make the tool but its stupid.
+	// Is this a model intelligence issue or a code bug? Not sure.
+	if decl.ParametersJsonSchema != nil {
+		props := ollama.NewToolPropertiesMap()
+		var required []string
+
+		if schema, ok := decl.ParametersJsonSchema.(map[string]any); ok {
+			if propsMap, ok := schema["properties"].(map[string]any); ok {
+				for name, propVal := range propsMap {
+					if propDef, ok := propVal.(map[string]any); ok {
+						prop := ollama.ToolProperty{}
+						if typStr, ok := propDef["type"].(string); ok {
+							prop.Type = ollama.PropertyType{typStr}
+						}
+						if desc, ok := propDef["description"].(string); ok {
+							prop.Description = desc
+						}
+						props.Set(name, prop)
+					}
+				}
 			}
-			t.Function.Parameters.Properties = pm
+			if req, ok := schema["required"].([]any); ok {
+				for _, r := range req {
+					if s, ok := r.(string); ok {
+						required = append(required, s)
+					}
+				}
+			}
 		}
-		t.Function.Parameters.Required = decl.Parameters.Required
+
+		t.Function.Parameters = ollama.ToolFunctionParameters{
+			Type:       "object",
+			Required:   required,
+			Properties: props,
+		}
 	}
 
 	return t
@@ -266,7 +288,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		var pendingToolCalls []ollama.ToolCall
 
 		respFunc := func(resp ollama.ChatResponse) error {
-			if m.logTokens {
+			if m.verboseLogging {
 				logger.Printf("stream token: done=%v content=%q thinking=%q tool_calls=%d",
 					resp.Done, resp.Message.Content, resp.Message.Thinking, len(resp.Message.ToolCalls))
 			}
@@ -418,7 +440,28 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		functiontool.Config{
 			Name:        "spotifySkipTrack",
 			Description: "Skip the current song/track playing in Spotify",
-		}, client.SkipfWrapper)
+		}, client.SkipNextTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	skipbTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifyPreviousTrack",
+			Description: "Skip to the previous song/track playing in Spotify",
+		}, client.SkipPreviousTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	userPlaylistsTool, err := functiontool.New(
+		functiontool.Config{
+			Name:	"spotifyGetUserPlaylists",
+			Description: "Get a list of the current user's playlists on Spotify. Requires 'limit' and 'offset' integer arguments, for pagination. Use 10 for 'limit' unless otherwise specified.",
+			// Description: "Get a list of the current user's playlists on Spotify.",
+		}, client.GetUserPlaylistsTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
 		return nil, fmt.Errorf("failed to create function tool: %w", err)
@@ -434,6 +477,8 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		Tools: []tool.Tool{
 			jokeTool,
 			skipfTool,
+			skipbTool,
+			userPlaylistsTool,
 		},
 	})
 	if err != nil {

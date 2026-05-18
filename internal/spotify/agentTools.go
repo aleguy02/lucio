@@ -1,11 +1,19 @@
 package spotify
 
-import "google.golang.org/adk/tool"
+import (
+	"google.golang.org/adk/tool"
+)
 
 // credit to https://github.com/marcelmarais/spotify-mcp-server
 ///////// READ TOOLS /////////
+
 type SearchSpotifyToolResult struct {}
 
+// SearchSpotify searches for tracks, albums, artists, or playlists on Spotify
+// based on the provided query and item type.
+//
+// It returns a slice of matching items containing their IDs, names, and
+// additional metadata.
 func (c *SpotifyClient) SearchSpotify(ctx tool.Context, _ struct{}) (SearchSpotifyToolResult, error) {
 	return SearchSpotifyToolResult{}, nil
 }
@@ -16,10 +24,29 @@ func (c *SpotifyClient) GetNowPlaying(ctx tool.Context, _ struct{}) (GetNowPlayi
 	return GetNowPlayingToolResult{}, nil
 }
 
-type GetMyPlaylistsToolResult struct {}
+// TODO(bug): the agent is omitting these parameters on the first call, every time. Is this an agent intelligence problem or a code problem? See agent.go's genaiDeclToOllamaTool func
+type GetUserPlaylistsToolArgs struct {
+	Limit int `json:"limit" jsonschema:"Maximum number of playlists to return. Use default value of 10 unless specified"`
+	Offset int `json:"offset" jsonschema:"Index of the first playlist to return."`
+} 
 
-func (c *SpotifyClient) GetMyPlaylists(ctx tool.Context, _ struct{}) (GetMyPlaylistsToolResult, error) {
-	return GetMyPlaylistsToolResult{}, nil
+type GetUserPlaylistsToolResult struct {
+	Playlists []SpotifyItem `json:"playlists"`
+	Success bool `json:"success"`
+}
+
+// Get a list of the current user's playlists on Spotify.
+//
+// It returns an array of playlists packed into SpotifyItems.
+func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlaylistsToolArgs) (GetUserPlaylistsToolResult, error) {
+	results, err := c.HandlePlaylists(args.Limit, args.Offset)
+	if err != nil {
+		return GetUserPlaylistsToolResult{Success: false}, err
+	}
+	return GetUserPlaylistsToolResult{
+		Playlists: results,
+		Success: true,
+	}, nil
 }
 
 type GetPlaylistTracksToolResult struct {}
@@ -41,34 +68,34 @@ func (c *SpotifyClient) RemoveUsersSavedTracks(ctx tool.Context, _ struct{}) (Re
 }
 
 ///////// PLAY/CREATE TOOLS /////////
-type SkipfWrapperResult struct {
+type SkipNextToolResult struct {
 	Success bool `json:"success"`
 }
 
-func (c *SpotifyClient) SkipfWrapper(ctx tool.Context, _ struct{}) (SkipfWrapperResult, error) {
+func (c *SpotifyClient) SkipNextTool(ctx tool.Context, _ struct{}) (SkipNextToolResult, error) {
 	if err := c.skipForward(); err != nil {
-		return SkipfWrapperResult{
+		return SkipNextToolResult{
 			Success: false,
 		}, err
 	}
 
-	return SkipfWrapperResult{
+	return SkipNextToolResult{
 		Success: true,
 	}, nil
 }
 
-type SkipbWrapperResult struct {
+type SkipPreviousToolResult struct {
 	Success bool `json:"success"`
 }
 
-func (c *SpotifyClient) SkipbWrapper(ctx tool.Context, _ struct{}) (SkipbWrapperResult, error) {
+func (c *SpotifyClient) SkipPreviousTool(ctx tool.Context, _ struct{}) (SkipPreviousToolResult, error) {
 	if err := c.skipBack(); err != nil {
-		return SkipbWrapperResult{
+		return SkipPreviousToolResult{
 			Success: false,
 		}, err
 	}
 
-	return SkipbWrapperResult{
+	return SkipPreviousToolResult{
 		Success: true,
 	}, nil
 }

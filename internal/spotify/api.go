@@ -11,27 +11,27 @@ import (
 
 // SpotifyItem is the shared representation of a Spotify entity used across the UI.
 type SpotifyItem struct {
-	Type zmb.SearchType
-	URI  zmb.URI
-	ID   zmb.ID
+	Type zmb.SearchType `json:"type"`
+	URI  zmb.URI        `json:"uri"`
+	ID   zmb.ID         `json:"id"`
 
 	// Items to show to user in small models. These should be important information.
 	// For example, the name and creator of a track/playlist/album.
-	ShortViewItems []string
-	LongView       Details
+	ShortViewItems []string `json:"shortViewItems"`
+	LongView       Details  `json:"longView"`
 }
 
 type Details struct {
-	Name     string
-	Metadata []MetaItem
+	Name     string     `json:"name"`
+	Metadata []MetaItem `json:"metadata"`
 	// TODO(feat): should we add a little "extra metadata" field? It's what ADK does for some types
 	// and we could use it to display, say, the if a playlist is collaborative or a song is explicit
 	// things people don't care about that much. Or we could put important navigation data (IDs or something)
 }
 
 type MetaItem struct {
-	Label string
-	Value string
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 // TODO(feat): could be extended with device, repeat state
@@ -287,8 +287,8 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 	return results, nil
 }
 
-func (c *SpotifyClient) HandlePlaylists() ([]SpotifyItem, error) {
-	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(7))
+func (c *SpotifyClient) HandlePlaylists(limit int, offset int) ([]SpotifyItem, error) {
+	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(limit), zmb.Offset(offset))
 	if err != nil {
 		return nil, fmt.Errorf("could not get playlists: %w", err)
 	}
