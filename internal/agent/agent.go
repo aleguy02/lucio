@@ -149,32 +149,41 @@ func genaiDeclToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 		},
 	}
 
-	// TODO(bug): The properties don't seem to be actually propagating to the model. I'm hacking around by telling the model the properties when I make the tool but its stupid.
-	// Is this a model intelligence issue or a code bug? Not sure.
+	// uncomment for deep debugging
+	// if b, err := json.MarshalIndent(decl.Parameters, "", "  "); err == nil {
+	// 	logger.Printf("decl.Parameters for %s: %s", decl.Name, b)
+	// }
+	// if b, err := json.MarshalIndent(decl.ParametersJsonSchema, "", "  "); err == nil {
+	// 	logger.Printf("decl.ParametersJsonSchema for %s: %s", decl.Name, b)
+	// }
 	if decl.ParametersJsonSchema != nil {
 		props := ollama.NewToolPropertiesMap()
 		var required []string
 
-		if schema, ok := decl.ParametersJsonSchema.(map[string]any); ok {
-			if propsMap, ok := schema["properties"].(map[string]any); ok {
-				for name, propVal := range propsMap {
-					if propDef, ok := propVal.(map[string]any); ok {
-						prop := ollama.ToolProperty{}
-						if typStr, ok := propDef["type"].(string); ok {
-							prop.Type = ollama.PropertyType{typStr}
-						}
-						if desc, ok := propDef["description"].(string); ok {
-							prop.Description = desc
-						}
-						props.Set(name, prop)
+		// serialize and deserialize ParametersJsonSchema through JSON to get a reliably typed map to enable subsequent ADK -> Ollama translation
+		var schema map[string]any
+		if b, err := json.Marshal(decl.ParametersJsonSchema); err == nil {
+			_ = json.Unmarshal(b, &schema)
+		}
+
+		if propsMap, ok := schema["properties"].(map[string]any); ok {
+			for name, propVal := range propsMap {
+				if propDef, ok := propVal.(map[string]any); ok {
+					prop := ollama.ToolProperty{}
+					if typStr, ok := propDef["type"].(string); ok {
+						prop.Type = ollama.PropertyType{typStr}
 					}
+					if desc, ok := propDef["description"].(string); ok {
+						prop.Description = desc
+					}
+					props.Set(name, prop)
 				}
 			}
-			if req, ok := schema["required"].([]any); ok {
-				for _, r := range req {
-					if s, ok := r.(string); ok {
-						required = append(required, s)
-					}
+		}
+		if req, ok := schema["required"].([]any); ok {
+			for _, r := range req {
+				if s, ok := r.(string); ok {
+					required = append(required, s)
 				}
 			}
 		}
@@ -273,6 +282,11 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				}
 			}
 		}
+
+		// uncomment for deep debugging
+		// if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
+		// 	logger.Printf("tools sent to ollama:\n%s", b)
+		// }
 
 		oReq := &ollama.ChatRequest{
 			Model:    req.Model,
@@ -459,8 +473,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 	userPlaylistsTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifyGetUserPlaylists",
-			Description: "Get a list of the current user's playlists on Spotify. Requires 'limit' and 'offset' integer arguments, for pagination. Use 10 for 'limit' unless otherwise specified.",
-			// Description: "Get a list of the current user's playlists on Spotify.",
+			Description: "Get a list of the current user's playlists on Spotify.",
 		}, client.GetUserPlaylistsTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
