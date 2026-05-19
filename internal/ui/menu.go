@@ -85,7 +85,6 @@ type Menu struct {
 	nowPlaying nowPlaying
 	guide      guide
 	agentTab   agentTabModel
-	theme      Theme
 	width      int
 	height     int
 }
@@ -118,7 +117,6 @@ func NewMenu() Menu {
 		nowPlaying:     NewNowPlaying(),
 		guide:          NewGuide(),
 		agentTab:       newAgentTabModel(),
-		theme:          ThemeDefault,
 	}
 }
 
@@ -354,32 +352,13 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = spotifyItemMode
 					return m, nil
 
-				// case "like":
-				// 	track := m.nowPlaying.playback.Track
-				// 	if track.ID == "" {
-				// 		m.alert = "no track currently playing"
-				// 		return m, nil
-				// 	}
-				// 	return m, sp.SpotifyActionCmd(sp.SpotifyActionMsg{Command: sp.CmdLike, Arg: string(track.ID)})
-
-				case "theme":
-					if len(parts) < 2 {
-						m.alert = "usage: theme default|minimalist|vibes"
-						return m, nil
-					}
-					switch parts[1] {
-					case "default":
-						m.theme = ThemeDefault
-					case "minimalist":
-						m.theme = ThemeMinimalist
-					case "vibes":
-						m.theme = ThemeVibes
-					default:
-						m.alert = fmt.Sprintf("unknown theme %q: try default, minimalist, vibes", parts[1])
-						return m, nil
-					}
-					TerminalLog.Printf("theme set to %q\n", parts[1])
-					return m, nil
+					// case "like":
+					// 	track := m.nowPlaying.playback.Track
+					// 	if track.ID == "" {
+					// 		m.alert = "no track currently playing"
+					// 		return m, nil
+					// 	}
+					// 	return m, sp.SpotifyActionCmd(sp.SpotifyActionMsg{Command: sp.CmdLike, Arg: string(track.ID)})
 				}
 
 				cmdStr := sp.SpotifyCommand(strings.ToUpper(parts[0]))

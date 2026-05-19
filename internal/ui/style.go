@@ -10,11 +10,3 @@ var (
 	ColorMidGray      = lipgloss.Color("#B3B3B3")
 	ColorDarkGray     = lipgloss.Color("#535353")
 )
-
-type Theme int
-
-const (
-	ThemeDefault Theme = iota
-	ThemeMinimalist
-	ThemeVibes
-)

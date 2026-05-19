@@ -50,7 +50,7 @@ type myLLM struct {
 	client          *ollama.Client
 	modelStr        string
 	name            string
-	verboseLogging       bool
+	verboseLogging  bool
 	thinkingEnabled bool
 }
 
@@ -77,7 +77,7 @@ func NewOllamaModel(c agentConf) (*myLLM, error) {
 		client:          client,
 		modelStr:        c.ModelName,
 		name:            c.ModelName,
-		verboseLogging:       c.VerboseLogging,
+		verboseLogging:  c.VerboseLogging,
 		thinkingEnabled: c.Thinking,
 	}, nil
 }
@@ -458,7 +458,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 
 	userPlaylistsTool, err := functiontool.New(
 		functiontool.Config{
-			Name:	"spotifyGetUserPlaylists",
+			Name:        "spotifyGetUserPlaylists",
 			Description: "Get a list of the current user's playlists on Spotify. Requires 'limit' and 'offset' integer arguments, for pagination. Use 10 for 'limit' unless otherwise specified.",
 			// Description: "Get a list of the current user's playlists on Spotify.",
 		}, client.GetUserPlaylistsTool)
