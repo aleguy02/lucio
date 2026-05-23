@@ -7,15 +7,43 @@ import (
 // credit to https://github.com/marcelmarais/spotify-mcp-server
 ///////// READ TOOLS /////////
 
-type SearchSpotifyToolResult struct{}
+type SearchSpotifyToolArgs struct {
+	SearchType int    `json:"spotify_type"          jsonschema:"The Spotify item type as an integer. album=1 artist=2 playlist=4 track=8"`
+	Query      string `json:"query"     jsonschema:"Search query"`
+}
+
+type SearchSpotifyToolResult struct {
+	Results []SpotifyItem `json:"search_results"`
+	Success bool          `json:"success"`
+}
 
 // SearchSpotify searches for tracks, albums, artists, or playlists on Spotify
 // based on the provided query and item type.
 //
 // It returns a slice of matching items containing their IDs, names, and
 // additional metadata.
-func (c *SpotifyClient) SearchSpotify(ctx tool.Context, _ struct{}) (SearchSpotifyToolResult, error) {
-	return SearchSpotifyToolResult{}, nil
+func (c *SpotifyClient) SearchSpotify(ctx tool.Context, args SearchSpotifyToolArgs) (SearchSpotifyToolResult, error) {
+	// pack type and query into spotifyactionmsg
+	var subcommand string
+	switch args.SearchType {
+	case 1:
+		subcommand = "album"
+	case 2:
+		subcommand = "artist"
+	case 4:
+		subcommand = "playlist"
+	case 8:
+		subcommand = "track"
+	}
+	msg := SpotifyActionMsg{
+		Command: "SEARCH", // This parameter is used in the TUI logic. Here, it is just for documentation
+		Arg:     subcommand + " " + args.Query,
+	}
+	res, err := c.HandleSearch(msg)
+	if err != nil {
+		return SearchSpotifyToolResult{Success: false}, err
+	}
+	return SearchSpotifyToolResult{Results: res, Success: true}, nil
 }
 
 type GetNowPlayingToolResult struct{}
@@ -124,10 +152,18 @@ func (c *SpotifyClient) AddTracksToPlaylist(ctx tool.Context, _ struct{}) (AddTr
 	return AddTracksToPlaylistToolResult{}, nil
 }
 
-type AddToQueueToolResult struct{}
+type AddToQueueToolArgs = QueueMsg
 
-func (c *SpotifyClient) AddToQueue(ctx tool.Context, _ struct{}) (AddToQueueToolResult, error) {
-	return AddToQueueToolResult{}, nil
+type AddToQueueToolResult struct {
+	Success bool `json:"success"`
+}
+
+func (c *SpotifyClient) AddToQueue(ctx tool.Context, args AddToQueueToolArgs) (AddToQueueToolResult, error) {
+	err := c.QueueSong(args)
+	if err != nil {
+		return AddToQueueToolResult{Success: false}, err
+	}
+	return AddToQueueToolResult{Success: true}, nil
 }
 
 // /////// ALBUM TOOLS /////////

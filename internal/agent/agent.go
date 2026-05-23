@@ -99,46 +99,46 @@ type callbackRes struct {
 	err error
 }
 
-func genaiSchemaToOllamaProperty(s *genai.Schema) ollama.ToolProperty {
-	if s == nil {
-		return ollama.ToolProperty{}
-	}
+// func genaiSchemaToOllamaProperty(s *genai.Schema) ollama.ToolProperty {
+// 	if s == nil {
+// 		return ollama.ToolProperty{}
+// 	}
 
-	prop := ollama.ToolProperty{
-		Type:        ollama.PropertyType{strings.ToLower(string(s.Type))},
-		Description: s.Description,
-	}
+// 	prop := ollama.ToolProperty{
+// 		Type:        ollama.PropertyType{strings.ToLower(string(s.Type))},
+// 		Description: s.Description,
+// 	}
 
-	if len(s.Enum) > 0 {
-		prop.Enum = make([]any, len(s.Enum))
-		for i, e := range s.Enum {
-			prop.Enum[i] = e
-		}
-	}
+// 	if len(s.Enum) > 0 {
+// 		prop.Enum = make([]any, len(s.Enum))
+// 		for i, e := range s.Enum {
+// 			prop.Enum[i] = e
+// 		}
+// 	}
 
-	if len(s.AnyOf) > 0 {
-		prop.AnyOf = make([]ollama.ToolProperty, len(s.AnyOf))
-		for i, sub := range s.AnyOf {
-			prop.AnyOf[i] = genaiSchemaToOllamaProperty(sub)
-		}
-	}
+// 	if len(s.AnyOf) > 0 {
+// 		prop.AnyOf = make([]ollama.ToolProperty, len(s.AnyOf))
+// 		for i, sub := range s.AnyOf {
+// 			prop.AnyOf[i] = genaiSchemaToOllamaProperty(sub)
+// 		}
+// 	}
 
-	if s.Items != nil {
-		items := genaiSchemaToOllamaProperty(s.Items)
-		prop.Items = items
-	}
+// 	if s.Items != nil {
+// 		items := genaiSchemaToOllamaProperty(s.Items)
+// 		prop.Items = items
+// 	}
 
-	if len(s.Properties) > 0 {
-		pm := ollama.NewToolPropertiesMap()
-		for name, sub := range s.Properties {
-			pm.Set(name, genaiSchemaToOllamaProperty(sub))
-		}
-		prop.Properties = pm
-		prop.Required = s.Required
-	}
+// 	if len(s.Properties) > 0 {
+// 		pm := ollama.NewToolPropertiesMap()
+// 		for name, sub := range s.Properties {
+// 			pm.Set(name, genaiSchemaToOllamaProperty(sub))
+// 		}
+// 		prop.Properties = pm
+// 		prop.Required = s.Required
+// 	}
 
-	return prop
-}
+// 	return prop
+// }
 
 func genaiDeclToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 	t := ollama.Tool{
@@ -490,19 +490,41 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		return nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
+	searchSpotifyTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifySearch",
+			Description: "Search for a track, album, artist, or playlist on Spotify",
+		}, client.SearchSpotify)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	addToQueueTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifyAddToQueue",
+			Description: "Add a track to the queue on Spotify. *Only* supports tracks.",
+		}, client.AddToQueue)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
 	// TODO(improvement, not planned):
 	// 	- add compaction depending on yaml file. Why not planned: This is unecessary because the user should just be able to /clear
 	ag, err := llmagent.New(llmagent.Config{
 		Name:                "Lucio",
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
-		Instruction:         "You are Lucio, a Spotify vibe-curator and DJ. You have access to tools to interact with Spotify. You are being used in a live stateful session so the output of tools may not be the same twice in a row, thus you are encouraged to retry tools.",
+		Instruction:         "You are Lucio, a Spotify vibe-curator and DJ. You have access to tools to interact with Spotify. You are being used in a live stateful session so the output of tools may not be the same twice in a row, thus you are encouraged to retry tools. If a tool outputs an error that is recoverable, please tell the user that you will try again and do so. If it is not recoverable, please tell the user that it is not recoverable and what the error was.",
 		Tools: []tool.Tool{
 			jokeTool,
 			skipfTool,
 			skipbTool,
 			userPlaylistsTool,
 			playItemTool,
+			searchSpotifyTool,
+			addToQueueTool,
 		},
 	})
 	if err != nil {
