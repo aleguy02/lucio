@@ -24,7 +24,6 @@ func (c *SpotifyClient) GetNowPlaying(ctx tool.Context, _ struct{}) (GetNowPlayi
 	return GetNowPlayingToolResult{}, nil
 }
 
-// TODO(bug): the agent is omitting these parameters on the first call, every time. Is this an agent intelligence problem or a code problem? See agent.go's genaiDeclToOllamaTool func
 type GetUserPlaylistsToolArgs struct {
 	Limit  int `json:"limit" jsonschema:"Maximum number of playlists to return. Use default value of 10 unless specified"`
 	Offset int `json:"offset" jsonschema:"Index of the first playlist to return."`
@@ -68,6 +67,19 @@ func (c *SpotifyClient) RemoveUsersSavedTracks(ctx tool.Context, _ struct{}) (Re
 }
 
 // /////// PLAY/CREATE TOOLS /////////
+type PlayItemToolArgs = PlaybackMsg
+
+type PlayItemToolResult struct {
+	Success bool `json:"success"`
+}
+
+func (c *SpotifyClient) PlayItemTool(ctx tool.Context, args PlayItemToolArgs) (PlayItemToolResult, error) {
+	if err := c.ExecutePlayback(args); err != nil {
+		return PlayItemToolResult{Success: false}, err
+	}
+	return PlayItemToolResult{Success: true}, nil
+}
+
 type SkipNextToolResult struct {
 	Success bool `json:"success"`
 }

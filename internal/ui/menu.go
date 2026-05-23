@@ -251,7 +251,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				item := m.searchResults.Selected()
 				if item.URI != "" {
 					m.state = menuMode
-					return m, func() tea.Msg { return sp.PlaybackMsg{Item: item} }
+					return m, func() tea.Msg { return sp.PlaybackMsg{Type: item.Type, ID: item.ID, URI: item.URI} }
 				}
 				TerminalLog.Println("Warning: selected search result does not have URI")
 			case key.Matches(msg, m.searchResults.Keys.AltSelect):
@@ -282,7 +282,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					item := m.spotifyItem.details.RawItem()
 					if item.URI != "" {
 						m.state = menuMode
-						return m, func() tea.Msg { return sp.PlaybackMsg{Item: item} }
+						return m, func() tea.Msg { return sp.PlaybackMsg{Type: item.Type, ID: item.ID, URI: item.URI} }
 					}
 					TerminalLog.Println("Warning: selected search result does not have URI")
 				}

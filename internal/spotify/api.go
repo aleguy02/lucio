@@ -11,9 +11,9 @@ import (
 
 // SpotifyItem is the shared representation of a Spotify entity used across the UI.
 type SpotifyItem struct {
-	Type zmb.SearchType `json:"type"`
-	URI  zmb.URI        `json:"uri"`
-	ID   zmb.ID         `json:"id"`
+	Type zmb.SearchType `json:"spotify_type"`
+	URI  zmb.URI        `json:"spotify_uri"`
+	ID   zmb.ID         `json:"spotify_id"`
 
 	// Items to show to user in small models. These should be important information.
 	// For example, the name and creator of a track/playlist/album.
@@ -384,14 +384,15 @@ func (c *SpotifyClient) GetPlaybackState() (PlaybackState, error) {
 	}, nil
 }
 
+// TODO(current): I need to make some design choices. Should I simplify the arguments to just the type, id, and uri?
 func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
-	switch msg.Item.Type {
+	switch msg.Type {
 	case zmb.SearchTypeTrack:
-		return c.playTrack(msg.Item.ID)
+		return c.playTrack(msg.ID)
 	case zmb.SearchTypeAlbum, zmb.SearchTypeArtist, zmb.SearchTypePlaylist:
-		return c.playFromContext(msg.Item.URI)
+		return c.playFromContext(msg.URI)
 	default:
-		return fmt.Errorf("playback not yet supported for type %v", msg.Item.Type)
+		return fmt.Errorf("playback not yet supported for type %v", msg.Type)
 	}
 }
 

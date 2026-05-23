@@ -284,9 +284,9 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		}
 
 		// uncomment for deep debugging
-		// if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
-		// 	logger.Printf("tools sent to ollama:\n%s", b)
-		// }
+		if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
+			logger.Printf("tools sent to ollama:\n%s", b)
+		}
 
 		oReq := &ollama.ChatRequest{
 			Model:    req.Model,
@@ -473,8 +473,18 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 	userPlaylistsTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifyGetUserPlaylists",
-			Description: "Get a list of the current user's playlists on Spotify.",
+			Description: "Get a list of the current user's playlists on Spotify",
 		}, client.GetUserPlaylistsTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	playItemTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifyPlayItem",
+			Description: "Play a track, album, artist, or playlist item on Spotify",
+		}, client.PlayItemTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
 		return nil, fmt.Errorf("failed to create function tool: %w", err)
@@ -492,6 +502,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 			skipfTool,
 			skipbTool,
 			userPlaylistsTool,
+			playItemTool,
 		},
 	})
 	if err != nil {

@@ -1,6 +1,9 @@
 package spotify
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+	zmb "github.com/zmb3/spotify/v2"
+)
 
 type SpotifyCommand string
 
@@ -49,7 +52,9 @@ type SearchResultsMsg []SpotifyItem
 
 // PlaybackMsg requests playback of a Spotify item.
 type PlaybackMsg struct {
-	Item SpotifyItem
+	Type zmb.SearchType `json:"spotify_type"          jsonschema:"The Spotify item type as an integer. album=1 artist=2 playlist=4 track=8"`
+	ID   zmb.ID         `json:"spotify_id,omitempty"  jsonschema:"The Spotify item ID. Required for tracks."`
+	URI  zmb.URI        `json:"spotify_uri,omitempty" jsonschema:"The Spotify URI. Required for albums, artists, and playlists."`
 }
 
 type QueueMsg struct {
