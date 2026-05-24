@@ -284,9 +284,9 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		}
 
 		// uncomment for deep debugging
-		if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
-			logger.Printf("tools sent to ollama:\n%s", b)
-		}
+		// if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
+		// 	logger.Printf("tools sent to ollama:\n%s", b)
+		// }
 
 		oReq := &ollama.ChatRequest{
 			Model:    req.Model,
@@ -440,16 +440,6 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		return resp, nil
 	}
 
-	jokeTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "getChuckNorrisJoke",
-			Description: "Get a joke about Chuck Norris",
-		}, getChuckNorrisJoke)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
 	skipfTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifySkipTrack",
@@ -516,9 +506,8 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		Name:                "Lucio",
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
-		Instruction:         "You are Lucio, a Spotify AI assistant. You have access to tools to interact with Spotify. You are being used in a live stateful session so the output of tools may not be the same twice in a row, thus you are encouraged to retry tools. If a tool outputs an error that is recoverable, please try again. If it is not recoverable, please tell the user that it is not recoverable and what the error was. Tell the user if you do not have a tool to do something the user asks. Do not use emojis.",
+		Instruction:         lucioInstruction,
 		Tools: []tool.Tool{
-			jokeTool,
 			skipfTool,
 			skipbTool,
 			userPlaylistsTool,
