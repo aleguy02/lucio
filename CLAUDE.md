@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Overview
 
 Spotify Hands Client is a multi-process terminal UI app that lets users control Spotify playback via hand gestures. A Python process handles gesture recognition via webcam and sends commands over a Unix domain socket to a Go TUI client, which calls the Spotify Web API.
@@ -30,7 +28,6 @@ Start the TUI client (`go run ./cmd/spotify-tui/` from repo root); it spawns `sc
 ```bash
 pip install -r requirements.txt
 ```
-Read `.env` to get Spotify credentials.
 
 ## Architecture
 
@@ -71,9 +68,6 @@ webcam → MediaPipe (Python) → Unix socket → gestures/server.go → BubbleT
 | Item Details | `tab` on a search result, or `details` in terminal mode | `esc` |
 | Terminal mode | `:` from any tab | `esc` or `enter` |
 
-### Terminal mode commands
-`PLAY`, `PAUSE`, `SKIPF`, `SKIPB`, `SEEKF <s>`, `SEEKB <s>`, `SEARCH artist/album/track <query>`, `details`, `theme default|minimalist|vibes`
-
 ## Key Technical Details
 
 - **IPC:** Unix domain socket at `/tmp/spotify-tui.sock`; messages are newline-terminated ASCII strings
@@ -84,4 +78,3 @@ webcam → MediaPipe (Python) → Unix socket → gestures/server.go → BubbleT
 - **TUI debug log:** `debug.log` at CWD (BubbleTea `LogToFile`, gitignored)
 - **Go module:** `aleguy02/spotify-tui`, requires Go 1.25.6+; run commands from repo root
 - **Python runtime:** 3.13 (`.venv/lib/python3.13`); gesture sender at `scripts/sender.py`
-- **Font file:** `ANSI_shadow.flf` must be present at repo root (gitignored)

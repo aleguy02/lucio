@@ -11,11 +11,10 @@ type helpSection int
 const (
 	helpTerminal helpSection = iota
 	helpGesture
-	helpVoice
 	helpAgent
 )
 
-var helpSectionLabels = []string{"TERMINAL COMMANDS", "HAND GESTURES", "VOICE COMMANDS", "AGENT"}
+var helpSectionLabels = []string{"TERMINAL COMMANDS", "HAND GESTURES", "AGENT"}
 
 type guideKeyMap struct {
 	NextSection key.Binding
@@ -154,7 +153,7 @@ func (m guide) sectionContent() string {
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 
-	case helpVoice, helpAgent:
+	case helpAgent:
 		return guideFaintStyle.Render("Coming soon.")
 	}
 	return ""
