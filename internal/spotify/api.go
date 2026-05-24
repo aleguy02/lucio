@@ -287,10 +287,10 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 	return results, nil
 }
 
-func (c *SpotifyClient) HandlePlaylists(limit int, offset int) ([]SpotifyItem, error) {
+func (c *SpotifyClient) HandlePlaylists(limit int, offset int) ([]SpotifyItem, int, bool, error) {
 	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(limit), zmb.Offset(offset))
 	if err != nil {
-		return nil, fmt.Errorf("could not get playlists: %w", err)
+		return nil, 0, false, fmt.Errorf("could not get playlists: %w", err)
 	}
 
 	var results []SpotifyItem
@@ -323,7 +323,7 @@ func (c *SpotifyClient) HandlePlaylists(limit int, offset int) ([]SpotifyItem, e
 			},
 		})
 	}
-	return results, nil
+	return results, int(page.Total), page.Next != "", nil
 }
 
 // GetDeviceNames returns a comma-separated list of available Spotify devices,

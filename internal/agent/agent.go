@@ -473,7 +473,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 	userPlaylistsTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifyGetUserPlaylists",
-			Description: "Get a list of the current user's playlists on Spotify",
+			Description: "Get a list of the current user's playlists on Spotify. If the user asks for all playlists, leverage the has_more field in the *return* value to determine if you need to make multiple calls to this tool.",
 		}, client.GetUserPlaylistsTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
@@ -516,7 +516,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		Name:                "Lucio",
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
-		Instruction:         "You are Lucio, a Spotify vibe-curator and DJ. You have access to tools to interact with Spotify. You are being used in a live stateful session so the output of tools may not be the same twice in a row, thus you are encouraged to retry tools. If a tool outputs an error that is recoverable, please tell the user that you will try again and do so. If it is not recoverable, please tell the user that it is not recoverable and what the error was.",
+		Instruction:         "You are Lucio, a Spotify AI assistant. You have access to tools to interact with Spotify. You are being used in a live stateful session so the output of tools may not be the same twice in a row, thus you are encouraged to retry tools. If a tool outputs an error that is recoverable, please try again. If it is not recoverable, please tell the user that it is not recoverable and what the error was. Tell the user if you do not have a tool to do something the user asks. Do not use emojis.",
 		Tools: []tool.Tool{
 			jokeTool,
 			skipfTool,

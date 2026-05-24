@@ -126,7 +126,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 		if msg.Command == sp.CmdPlaylists {
-			results, err := m.spotifyClient.HandlePlaylists(7, 0)
+			results, _, _, err := m.spotifyClient.HandlePlaylists(7, 0)
 			if err != nil {
 				errMsg := sp.SpotifyRouteErrorMsg(err.Error())
 				return m, tea.Batch(func() tea.Msg { return errMsg }, gestures.WaitForGestureCmd(m.gestureChan))

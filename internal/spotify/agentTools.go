@@ -59,6 +59,8 @@ type GetUserPlaylistsToolArgs struct {
 
 type GetUserPlaylistsToolResult struct {
 	Playlists []SpotifyItem `json:"playlists"`
+	Total     int           `json:"total"`
+	HasMore   bool          `json:"has_more"`
 	Success   bool          `json:"success"`
 }
 
@@ -66,12 +68,14 @@ type GetUserPlaylistsToolResult struct {
 //
 // It returns an array of playlists packed into SpotifyItems.
 func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlaylistsToolArgs) (GetUserPlaylistsToolResult, error) {
-	results, err := c.HandlePlaylists(args.Limit, args.Offset)
+	results, total, hasMore, err := c.HandlePlaylists(args.Limit, args.Offset)
 	if err != nil {
 		return GetUserPlaylistsToolResult{Success: false}, err
 	}
 	return GetUserPlaylistsToolResult{
 		Playlists: results,
+		Total:     total,
+		HasMore:   hasMore,
 		Success:   true,
 	}, nil
 }
