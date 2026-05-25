@@ -40,10 +40,11 @@ func init() {
 }
 
 type agentConf struct {
-	ModelName      string `yaml:"model"`
-	ModelURL       string `yaml:"model_url"`
-	VerboseLogging bool   `yaml:"verbose_logging"`
-	Thinking       bool   `yaml:"thinking"`
+	ModelName      string   `yaml:"model"`
+	ModelURL       string   `yaml:"model_url"`
+	VerboseLogging bool     `yaml:"verbose_logging"`
+	Thinking       bool     `yaml:"thinking"`
+	Temperature    *float32 `yaml:"temperature"`
 }
 
 type myLLM struct {
@@ -52,6 +53,7 @@ type myLLM struct {
 	name            string
 	verboseLogging  bool
 	thinkingEnabled bool
+	temperature     *float32
 }
 
 func NewOllamaModel(c agentConf) (*myLLM, error) {
@@ -79,6 +81,7 @@ func NewOllamaModel(c agentConf) (*myLLM, error) {
 		name:            c.ModelName,
 		verboseLogging:  c.VerboseLogging,
 		thinkingEnabled: c.Thinking,
+		temperature:     c.Temperature,
 	}, nil
 }
 
@@ -296,6 +299,9 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			},
 			Stream: &stream,
 			Tools:  tools,
+		}
+		if m.temperature != nil {
+			oReq.Options = map[string]any{"temperature": *m.temperature}
 		}
 
 		var accumulated strings.Builder

@@ -53,7 +53,7 @@ func (c *SpotifyClient) GetNowPlaying(ctx tool.Context, _ struct{}) (GetNowPlayi
 }
 
 type GetUserPlaylistsToolArgs struct {
-	Limit  int `json:"limit" jsonschema:"Maximum number of playlists to return. Use default value of 10 unless specified"`
+	Limit  int `json:"limit" jsonschema:"Maximum number of playlists to return. Default value is 10 for single tool calls"`
 	Offset int `json:"offset" jsonschema:"Index of the first playlist to return."`
 }
 
