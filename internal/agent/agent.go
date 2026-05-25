@@ -102,48 +102,7 @@ type callbackRes struct {
 	err error
 }
 
-// func genaiSchemaToOllamaProperty(s *genai.Schema) ollama.ToolProperty {
-// 	if s == nil {
-// 		return ollama.ToolProperty{}
-// 	}
-
-// 	prop := ollama.ToolProperty{
-// 		Type:        ollama.PropertyType{strings.ToLower(string(s.Type))},
-// 		Description: s.Description,
-// 	}
-
-// 	if len(s.Enum) > 0 {
-// 		prop.Enum = make([]any, len(s.Enum))
-// 		for i, e := range s.Enum {
-// 			prop.Enum[i] = e
-// 		}
-// 	}
-
-// 	if len(s.AnyOf) > 0 {
-// 		prop.AnyOf = make([]ollama.ToolProperty, len(s.AnyOf))
-// 		for i, sub := range s.AnyOf {
-// 			prop.AnyOf[i] = genaiSchemaToOllamaProperty(sub)
-// 		}
-// 	}
-
-// 	if s.Items != nil {
-// 		items := genaiSchemaToOllamaProperty(s.Items)
-// 		prop.Items = items
-// 	}
-
-// 	if len(s.Properties) > 0 {
-// 		pm := ollama.NewToolPropertiesMap()
-// 		for name, sub := range s.Properties {
-// 			pm.Set(name, genaiSchemaToOllamaProperty(sub))
-// 		}
-// 		prop.Properties = pm
-// 		prop.Required = s.Required
-// 	}
-
-// 	return prop
-// }
-
-func genaiDeclToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
+func ADKToolToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 	t := ollama.Tool{
 		Type: "function",
 		Function: ollama.ToolFunction{
@@ -205,6 +164,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 	return func(yield func(*model.LLMResponse, error) bool) {
 		ch := make(chan callbackRes)
 
+		// First half of this function is a translation layer between ADK <--> Ollama
 		msgs := make([]ollama.Message, 0, len(req.Contents))
 		for _, c := range req.Contents {
 			role := c.Role
@@ -230,6 +190,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 							Arguments: args,
 						},
 					})
+
 				case p.FunctionResponse != nil:
 					content, _ := json.Marshal(p.FunctionResponse.Response)
 					toolResponses = append(toolResponses, ollama.Message{
@@ -238,6 +199,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 						ToolName:   p.FunctionResponse.Name,
 						ToolCallID: p.FunctionResponse.ID,
 					})
+					
 				case !p.Thought:
 					text += p.Text
 				}
@@ -270,8 +232,6 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			logger.Printf("message history:\n%s", b)
 		}
 
-		stream := true
-
 		var tools []ollama.Tool
 		if req.Config != nil {
 			for _, genaiTool := range req.Config.Tools {
@@ -280,7 +240,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				}
 				for _, decl := range genaiTool.FunctionDeclarations {
 					if decl != nil {
-						tools = append(tools, genaiDeclToOllamaTool(decl))
+						tools = append(tools, ADKToolToOllamaTool(decl))
 					}
 				}
 			}
@@ -290,6 +250,9 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		// if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
 		// 	logger.Printf("tools sent to ollama:\n%s", b)
 		// }
+
+		// Second half of this function
+		stream := true
 
 		oReq := &ollama.ChatRequest{
 			Model:    req.Model,
@@ -319,6 +282,8 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				pendingToolCalls = append(pendingToolCalls, resp.Message.ToolCalls...)
 			}
 
+
+			// This is where we stream tokens back to the user to display them in the TUI
 			if !resp.Done {
 				accumulated.WriteString(resp.Message.Content)
 				// Only forward non-empty tokens; skip thinking-only tokens.
@@ -357,6 +322,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			text := accumulated.String()
 			// Some models route their entire response into Thinking and leave
 			// Content empty. Fall back so the reply is never silently blank.
+			// TODO(bug): I think this is dead code. I haven't observed it ever doing anything
 			if text == "" && resp.Message.Thinking != "" {
 				logger.Printf("content empty, falling back to thinking text (%d chars)", len(resp.Message.Thinking))
 				text = "[WARNING]: content was empty, falling back to thinking text\n" + resp.Message.Thinking

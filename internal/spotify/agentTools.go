@@ -1,6 +1,10 @@
 package spotify
 
 import (
+	"aleguy02/spotify-tui/internal/toon"
+	"context"
+
+	zmb "github.com/zmb3/spotify/v2"
 	"google.golang.org/adk/tool"
 )
 
@@ -57,27 +61,54 @@ type GetUserPlaylistsToolArgs struct {
 	Offset int `json:"offset" jsonschema:"Index of the first playlist to return."`
 }
 
+// Playlist is a simplified representation of a Spotify playlist.
+type Playlist struct {
+	URI           string `json:"uri"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Owner         string `json:"owner"`
+	Collaborative bool   `json:"collaborative"`
+	Description   string `json:"description"`
+}
+
 type GetUserPlaylistsToolResult struct {
-	Playlists []SpotifyItem `json:"playlists"`
-	Total     int           `json:"total"`
-	HasMore   bool          `json:"has_more"`
-	Success   bool          `json:"success"`
+	ToonOutput string `json:"result_as_toon"`
+	Success    bool   `json:"success"`
+}
+
+type GetUserPlaylistsToolResultJSON struct {
+	Playlists []Playlist `json:"playlists"`
+	Total     int        `json:"total_user_playlists"`
 }
 
 // Get a list of the current user's playlists on Spotify.
 //
 // It returns an array of playlists packed into SpotifyItems.
 func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlaylistsToolArgs) (GetUserPlaylistsToolResult, error) {
-	results, total, hasMore, err := c.HandlePlaylists(args.Limit, args.Offset)
+	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
 	if err != nil {
 		return GetUserPlaylistsToolResult{Success: false}, err
 	}
-	return GetUserPlaylistsToolResult{
-		Playlists: results,
-		Total:     total,
-		HasMore:   hasMore,
-		Success:   true,
-	}, nil
+
+	var playlists []Playlist
+	for _, p := range page.Playlists {
+		playlists = append(playlists, Playlist{
+			URI:           string(p.URI),
+			ID:            string(p.ID),
+			Name:          p.Name,
+			Owner:         p.Owner.DisplayName,
+			Collaborative: p.Collaborative,
+			Description:   p.Description,
+		})
+	}
+	j := GetUserPlaylistsToolResultJSON{
+		Playlists: playlists,
+		Total:     int(page.Total),
+	}
+	out, err := toon.Encode(j, nil); if err != nil {
+		return GetUserPlaylistsToolResult{Success: false}, err
+	}
+	return GetUserPlaylistsToolResult{ToonOutput: out, Success: true}, nil
 }
 
 type GetPlaylistTracksToolResult struct{}
