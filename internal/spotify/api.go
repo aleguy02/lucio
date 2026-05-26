@@ -384,7 +384,6 @@ func (c *SpotifyClient) GetPlaybackState() (PlaybackState, error) {
 	}, nil
 }
 
-// TODO(current): I need to make some design choices. Should I simplify the arguments to just the type, id, and uri?
 func (c *SpotifyClient) ExecutePlayback(msg PlaybackMsg) error {
 	switch msg.Type {
 	case zmb.SearchTypeTrack:

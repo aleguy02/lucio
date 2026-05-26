@@ -455,7 +455,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		functiontool.Config{
 			Name:        "spotifySearch",
 			Description: "Search for a track, album, artist, or playlist on Spotify",
-		}, client.SearchSpotify)
+		}, client.SearchSpotifyTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
 		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
