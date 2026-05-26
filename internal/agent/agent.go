@@ -199,7 +199,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 						ToolName:   p.FunctionResponse.Name,
 						ToolCallID: p.FunctionResponse.ID,
 					})
-					
+
 				case !p.Thought:
 					text += p.Text
 				}
@@ -281,7 +281,6 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			if len(resp.Message.ToolCalls) > 0 {
 				pendingToolCalls = append(pendingToolCalls, resp.Message.ToolCalls...)
 			}
-
 
 			// This is where we stream tokens back to the user to display them in the TUI
 			if !resp.Done {
@@ -365,28 +364,28 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 }
 
 // NewRunner creates a ready-to-use ADK runner backed by Ollama with an in-memory session.
-func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
+func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error) {
 	data, err := os.ReadFile(confPath)
 	if err != nil {
 		logger.Printf("error reading file: %v", err)
-		return nil, fmt.Errorf("error reading file: %w", err)
+		return nil, nil, fmt.Errorf("error reading file: %w", err)
 	}
 
 	c := agentConf{}
 	if err := yaml.Unmarshal(data, &c); err != nil {
 		logger.Printf("could not unmarshal yaml: %v", err)
-		return nil, fmt.Errorf("could not unmarshal yaml: %w", err)
+		return nil, nil, fmt.Errorf("could not unmarshal yaml: %w", err)
 	}
 
 	if c.ModelName == "" {
 		logger.Printf("model must be set")
-		return nil, fmt.Errorf("model must be set")
+		return nil, nil, fmt.Errorf("model must be set")
 	}
 
 	llm, err := NewOllamaModel(c)
 	if err != nil {
 		logger.Printf("failed to create ollama model: %s", err)
-		return nil, fmt.Errorf("failed to create ollama model: %w", err)
+		return nil, nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
 	// TODO(bug): sometimes newlines render extra tall sometimes not. It makes the agent response look messed up
@@ -419,7 +418,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		}, client.SkipNextTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
 	skipbTool, err := functiontool.New(
@@ -429,7 +428,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		}, client.SkipPreviousTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
 	userPlaylistsTool, err := functiontool.New(
@@ -439,7 +438,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		}, client.GetUserPlaylistsTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
 	playItemTool, err := functiontool.New(
@@ -449,7 +448,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		}, client.PlayItemTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
 	searchSpotifyTool, err := functiontool.New(
@@ -459,7 +458,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		}, client.SearchSpotify)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
 	addToQueueTool, err := functiontool.New(
@@ -469,7 +468,7 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 		}, client.AddToQueue)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
-		return nil, fmt.Errorf("failed to create function tool: %w", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
 	// TODO(improvement, not planned):
@@ -490,21 +489,22 @@ func NewRunner(client *sp.SpotifyClient) (*runner.Runner, error) {
 	})
 	if err != nil {
 		logger.Printf("failed to create llm agent: %s", err)
-		return nil, fmt.Errorf("failed to create llm agent: %w", err)
+		return nil, nil, fmt.Errorf("failed to create llm agent: %w", err)
 	}
 
+	sesh := session.InMemoryService()
 	r, err := runner.New(runner.Config{
 		AppName:           "spotify-tui",
 		Agent:             ag,
-		SessionService:    session.InMemoryService(),
+		SessionService:    sesh,
 		AutoCreateSession: true,
 	})
 	if err != nil {
 		logger.Printf("failed to create runner: %s", err)
-		return nil, fmt.Errorf("failed to create runner: %w", err)
+		return nil, nil, fmt.Errorf("failed to create runner: %w", err)
 	}
 
-	return r, nil
+	return sesh, r, nil
 }
 
 // TODO(test): how do I test this shi

@@ -395,8 +395,8 @@ func TestEncodeFromMapStringAny(t *testing.T) {
 
 func TestEncodeFromStruct(t *testing.T) {
 	type Hike struct {
-		ID       int    `json:"id"`
-		Name     string `json:"name"`
+		ID       int     `json:"id"`
+		Name     string  `json:"name"`
 		Distance float64 `json:"distance"`
 	}
 	in := Hike{ID: 1, Name: "Blue Lake", Distance: 7.5}

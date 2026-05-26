@@ -105,7 +105,8 @@ func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlayl
 		Playlists: playlists,
 		Total:     int(page.Total),
 	}
-	out, err := toon.Encode(j, nil); if err != nil {
+	out, err := toon.Encode(j, nil)
+	if err != nil {
 		return GetUserPlaylistsToolResult{Success: false}, err
 	}
 	return GetUserPlaylistsToolResult{ToonOutput: out, Success: true}, nil

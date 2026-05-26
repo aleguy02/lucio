@@ -29,12 +29,12 @@ func main() {
 		log.Fatal("Spotify setup failed: ", err)
 	}
 
-	agentRunner, err := myagent.NewRunner(client)
+	sessionService, agentRunner, err := myagent.NewRunner(client)
 	if err != nil {
 		log.Fatal("Agent setup failed: ", err)
 	}
 
-	p := tea.NewProgram(newModel(client, agentRunner))
+	p := tea.NewProgram(newModel(client, sessionService, agentRunner))
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}

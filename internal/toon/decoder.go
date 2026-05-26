@@ -406,7 +406,7 @@ func (d *decoder) decodeListItems(depth int, h header) ([]any, error) {
 		if nd != depth+1 {
 			break
 		}
-		if !(line.content == "-" || strings.HasPrefix(line.content, "- ")) {
+		if line.content != "-" && !strings.HasPrefix(line.content, "- ") {
 			break
 		}
 		item, err := d.decodeListItem(depth+1, h.delim)

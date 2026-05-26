@@ -17,6 +17,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	adkagent "google.golang.org/adk/agent"
 	adkrunner "google.golang.org/adk/runner"
+	"google.golang.org/adk/session"
 	"google.golang.org/genai"
 )
 
@@ -42,22 +43,24 @@ const (
 )
 
 type Model struct {
-	active        int
-	views         []tea.Model
-	spotifyClient *sp.SpotifyClient
-	gestureCancel context.CancelFunc
-	gestureChan   chan tea.Msg
-	gestureProc   *os.Process
-	agentRunner   *adkrunner.Runner
-	agentChan     chan tea.Msg
+	active         int
+	views          []tea.Model
+	spotifyClient  *sp.SpotifyClient
+	gestureCancel  context.CancelFunc
+	gestureChan    chan tea.Msg
+	gestureProc    *os.Process
+	agentRunner    *adkrunner.Runner
+	agentChan      chan tea.Msg
+	sessionService session.Service
 }
 
-func newModel(client *sp.SpotifyClient, agentRunner *adkrunner.Runner) *Model {
+func newModel(client *sp.SpotifyClient, sesh session.Service, agentRunner *adkrunner.Runner) *Model {
 	return &Model{
-		active:        0,
-		views:         []tea.Model{ui.NewMenu()},
-		spotifyClient: client,
-		agentRunner:   agentRunner,
+		active:         0,
+		views:          []tea.Model{ui.NewMenu()},
+		spotifyClient:  client,
+		agentRunner:    agentRunner,
+		sessionService: sesh,
 	}
 }
 
@@ -178,6 +181,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(func() tea.Msg { return sp.QueueSuccessMsg(label) }, gestures.WaitForGestureCmd(m.gestureChan))
 
 	case ui.AgentQueryMsg:
+		if msg.Text == "/clear" {
+			ch := make(chan tea.Msg, 2)
+			m.agentChan = ch
+			if m.sessionService != nil {
+				if err := m.sessionService.Delete(context.Background(), &session.DeleteRequest{
+					AppName:   "spotify-tui",
+					UserID:    agentUserID,
+					SessionID: agentSessionID,
+				}); err != nil {
+					ch <- ui.AgentChunkMsg{Err: err, Done: true}
+					return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
+				}
+			}
+			ch <- ui.AgentChunkMsg{Text: "Session cleared. You can still scroll up to view our past messages but I won't remember any of them."}
+			ch <- ui.AgentChunkMsg{Done: true}
+			return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
+		}
 		if m.agentRunner != nil {
 			ch := make(chan tea.Msg)
 			m.agentChan = ch

@@ -28,7 +28,7 @@ func main() {
 		log.Fatal("Spotify setup failed: ", err)
 	}
 
-	runner, err := myagent.NewRunner(client)
+	_, runner, err := myagent.NewRunner(client)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create runner: %v\n", err)
 		os.Exit(1)

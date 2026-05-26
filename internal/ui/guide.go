@@ -84,7 +84,7 @@ var (
 	guideTabStyle       = lipgloss.NewStyle().Foreground(ColorDarkGray).Padding(0, 2)
 	guideCmdStyle       = lipgloss.NewStyle().Foreground(ColorWhite).Width(34)
 	guideDescStyle      = lipgloss.NewStyle().Foreground(ColorMidGray)
-	guideFaintStyle     = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
+	// guideFaintStyle     = lipgloss.NewStyle().Faint(true).Foreground(ColorDarkGray)
 )
 
 func (m guide) View() tea.View {
@@ -153,7 +153,15 @@ func (m guide) sectionContent() string {
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 
 	case helpAgent:
-		return guideFaintStyle.Render("Coming soon.")
+		rows := [][]string{
+			{"/clear", "Start a new session with empty context. Recommended if the agent begins hallucinating."},
+			// TODO: add all available tools here and suggest that the user reference them by name if they are struggling
+		}
+		var lines []string
+		for _, r := range rows {
+			lines = append(lines, guideCmdStyle.Render(r[0])+guideDescStyle.Render(r[1]))
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 	return ""
 }

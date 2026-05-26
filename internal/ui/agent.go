@@ -222,6 +222,9 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 			return c, cmd
 
 		default:
+			if c.isResponding {
+				return c, nil
+			}
 			c.input, cmd = c.input.Update(msg)
 			return c, cmd
 		}
