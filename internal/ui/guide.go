@@ -154,6 +154,16 @@ func (m guide) sectionContent() string {
 
 	case helpAgent:
 		rows := [][]string{
+			{"spotifySkipTrack", "Skip the current song/track playing in Spotify"},
+			{"spotifyPreviousTrack", "Skip to the previous song/track playing in Spotify"},
+			{"spotifyGetUserPlaylists", "Get a list of the user's playlists on Spotify"},
+			{"spotifyPlayItem", "Play a track, album, artist, or playlist item on Spotify"},
+			{"spotifySearch", "Search for a track, album, artist, or playlist on Spotify"},
+			{"spotifyAddToQueue", "Add a track to the queue on Spotify. *Only* supports tracks."},
+			{"spotifyGetNowPlaying", "Get the song that is currently playing on Spotify"},
+			{"spotifyGetPlaylistTracks", "Get a list of tracks from a playlist owned by the user or where the user is a collaborator on Spotify"},
+			{"spotifyGetAlbums", "Get the details of one or more albums on Spotify"},
+			{"spotifyGetAlbumTracks", "Get a list of tracks from an album on Spotify"},
 			{"/clear", "Start a new session with empty context. Recommended if the agent begins hallucinating."},
 			// TODO: add all available tools here and suggest that the user reference them by name if they are struggling
 		}

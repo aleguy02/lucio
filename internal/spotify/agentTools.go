@@ -96,8 +96,12 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 	case 8:
 		searchType = zmb.SearchTypeTrack
 	default:
-		return SearchSpotifyToolResult{Success: false}, fmt.Errorf("unknown search type %d", args.SearchType)
+		err := fmt.Errorf("unknown search type %d", args.SearchType)
+		logger.Printf("SearchSpotifyTool: %v", err)
+		return SearchSpotifyToolResult{Success: false}, err
 	}
+
+	logger.Printf("SearchSpotifyTool: type=%d query=%q", args.SearchType, args.Query)
 
 	var out string
 	var encErr error
@@ -108,6 +112,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(artists) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
+				logger.Printf("SearchSpotifyTool: artist search error (query=%q offset=%d): %v", args.Query, offset, err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Artists == nil {
@@ -127,6 +132,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(albums) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
+				logger.Printf("SearchSpotifyTool: album search error (query=%q offset=%d): %v", args.Query, offset, err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Albums == nil {
@@ -157,6 +163,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(tracks) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
+				logger.Printf("SearchSpotifyTool: track search error (query=%q offset=%d): %v", args.Query, offset, err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Tracks == nil {
@@ -188,6 +195,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(playlists) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
+				logger.Printf("SearchSpotifyTool: playlist search error (query=%q offset=%d): %v", args.Query, offset, err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Playlists == nil {
@@ -211,15 +219,61 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 	}
 
 	if encErr != nil {
+		logger.Printf("SearchSpotifyTool: encode error: %v", encErr)
 		return SearchSpotifyToolResult{Success: false}, encErr
 	}
 	return SearchSpotifyToolResult{ToonOutput: out, Success: true}, nil
 }
 
-type GetNowPlayingToolResult struct{}
+type getNowPlayingJSON struct {
+	IsPlaying    bool  `json:"is_playing"`
+	ProgressMs   int   `json:"progress_ms"`
+	ShuffleState bool  `json:"shuffle_state"`
+	Track        Track `json:"track"`
+}
 
-func (c *SpotifyClient) GetNowPlaying(ctx tool.Context, _ struct{}) (GetNowPlayingToolResult, error) {
-	return GetNowPlayingToolResult{}, nil
+type GetNowPlayingToolResult struct {
+	ToonOutput string `json:"result_as_toon"`
+	Success    bool   `json:"success"`
+}
+
+// GetNowPlayingTool returns the currently playing track and playback state.
+func (c *SpotifyClient) GetNowPlayingTool(ctx tool.Context, _ struct{}) (GetNowPlayingToolResult, error) {
+	result, err := c.client.PlayerState(context.Background())
+	if err != nil {
+		logger.Printf("GetNowPlayingTool: PlayerState error: %v", err)
+		return GetNowPlayingToolResult{Success: false}, err
+	}
+
+	j := getNowPlayingJSON{
+		IsPlaying:    result.Playing,
+		ProgressMs:   int(result.Progress),
+		ShuffleState: result.ShuffleState,
+	}
+
+	if result.Item != nil {
+		t := result.Item
+		var artistNames []string
+		for _, a := range t.Artists {
+			artistNames = append(artistNames, a.Name)
+		}
+		j.Track = Track{
+			URI:         string(t.URI),
+			ID:          string(t.ID),
+			Name:        t.Name,
+			Artists:     strings.Join(artistNames, ", "),
+			Album:       t.Album.Name,
+			DurationMs:  int(t.Duration),
+			TrackNumber: int(t.TrackNumber),
+		}
+	}
+
+	out, encErr := toon.Encode(j, nil)
+	if encErr != nil {
+		logger.Printf("GetNowPlayingTool: encode error: %v", encErr)
+		return GetNowPlayingToolResult{Success: false}, encErr
+	}
+	return GetNowPlayingToolResult{ToonOutput: out, Success: true}, nil
 }
 
 type GetUserPlaylistsToolArgs struct {
@@ -241,8 +295,10 @@ type GetUserPlaylistsToolResultJSON struct {
 //
 // It returns an array of playlists packed into SpotifyItems.
 func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlaylistsToolArgs) (GetUserPlaylistsToolResult, error) {
+	logger.Printf("GetUserPlaylistsTool: limit=%d offset=%d", args.Limit, args.Offset)
 	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
 	if err != nil {
+		logger.Printf("GetUserPlaylistsTool: API error: %v", err)
 		return GetUserPlaylistsToolResult{Success: false}, err
 	}
 
@@ -263,15 +319,67 @@ func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlayl
 	}
 	out, err := toon.Encode(j, nil)
 	if err != nil {
+		logger.Printf("GetUserPlaylistsTool: encode error: %v", err)
 		return GetUserPlaylistsToolResult{Success: false}, err
 	}
 	return GetUserPlaylistsToolResult{ToonOutput: out, Success: true}, nil
 }
 
-type GetPlaylistTracksToolResult struct{}
+type GetPlaylistTracksToolArgs struct {
+	PlaylistID string `json:"playlist_id" jsonschema:"The Spotify ID of the playlist"`
+	Limit      int    `json:"limit"       jsonschema:"Maximum tracks to return (1-20). Default 20"`
+	Offset     int    `json:"offset"      jsonschema:"Pagination offset. Default 0"`
+}
 
-func (c *SpotifyClient) GetPlaylistTracks(ctx tool.Context, _ struct{}) (GetPlaylistTracksToolResult, error) {
-	return GetPlaylistTracksToolResult{}, nil
+type GetPlaylistTracksToolResult struct {
+	ToonOutput string `json:"result_as_toon"`
+	Success    bool   `json:"success"`
+}
+
+type getPlaylistTracksJSON struct {
+	Tracks []Track `json:"tracks"`
+	Total  int     `json:"total_tracks"`
+}
+
+// GetPlaylistTracksTool returns paginated tracks for a playlist. Max limit 20.
+func (c *SpotifyClient) GetPlaylistTracksTool(ctx tool.Context, args GetPlaylistTracksToolArgs) (GetPlaylistTracksToolResult, error) {
+	if args.Limit > 20 {
+		args.Limit = 20
+	}
+	logger.Printf("GetPlaylistTracksTool: playlist=%q limit=%d offset=%d", args.PlaylistID, args.Limit, args.Offset)
+	page, err := c.client.GetPlaylistItems(context.Background(), zmb.ID(args.PlaylistID), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
+	if err != nil {
+		logger.Printf("GetPlaylistTracksTool: API error (playlist=%q): %v", args.PlaylistID, err)
+		return GetPlaylistTracksToolResult{Success: false}, err
+	}
+
+	var tracks []Track
+	for _, item := range page.Items {
+		t := item.Track.Track
+		if t == nil || string(t.ID) == "" {
+			continue
+		}
+		var artistNames []string
+		for _, a := range t.Artists {
+			artistNames = append(artistNames, a.Name)
+		}
+		tracks = append(tracks, Track{
+			URI:         string(t.URI),
+			ID:          string(t.ID),
+			Name:        t.Name,
+			Artists:     strings.Join(artistNames, ", "),
+			Album:       t.Album.Name,
+			DurationMs:  int(t.Duration),
+			TrackNumber: int(t.TrackNumber),
+		})
+	}
+
+	out, encErr := toon.Encode(getPlaylistTracksJSON{Tracks: tracks, Total: int(page.Total)}, nil)
+	if encErr != nil {
+		logger.Printf("GetPlaylistTracksTool: encode error: %v", encErr)
+		return GetPlaylistTracksToolResult{Success: false}, encErr
+	}
+	return GetPlaylistTracksToolResult{ToonOutput: out, Success: true}, nil
 }
 
 type GetRecentlyPlayedToolResult struct{}
@@ -294,7 +402,9 @@ type PlayItemToolResult struct {
 }
 
 func (c *SpotifyClient) PlayItemTool(ctx tool.Context, args PlayItemToolArgs) (PlayItemToolResult, error) {
+	logger.Printf("PlayItemTool: %+v", args)
 	if err := c.ExecutePlayback(args); err != nil {
+		logger.Printf("PlayItemTool: error: %v", err)
 		return PlayItemToolResult{Success: false}, err
 	}
 	return PlayItemToolResult{Success: true}, nil
@@ -306,14 +416,10 @@ type SkipNextToolResult struct {
 
 func (c *SpotifyClient) SkipNextTool(ctx tool.Context, _ struct{}) (SkipNextToolResult, error) {
 	if err := c.skipForward(); err != nil {
-		return SkipNextToolResult{
-			Success: false,
-		}, err
+		logger.Printf("SkipNextTool: error: %v", err)
+		return SkipNextToolResult{Success: false}, err
 	}
-
-	return SkipNextToolResult{
-		Success: true,
-	}, nil
+	return SkipNextToolResult{Success: true}, nil
 }
 
 type SkipPreviousToolResult struct {
@@ -322,14 +428,10 @@ type SkipPreviousToolResult struct {
 
 func (c *SpotifyClient) SkipPreviousTool(ctx tool.Context, _ struct{}) (SkipPreviousToolResult, error) {
 	if err := c.skipBack(); err != nil {
-		return SkipPreviousToolResult{
-			Success: false,
-		}, err
+		logger.Printf("SkipPreviousTool: error: %v", err)
+		return SkipPreviousToolResult{Success: false}, err
 	}
-
-	return SkipPreviousToolResult{
-		Success: true,
-	}, nil
+	return SkipPreviousToolResult{Success: true}, nil
 }
 
 type CreatePlaylistToolResult struct{}
@@ -351,24 +453,127 @@ type AddToQueueToolResult struct {
 }
 
 func (c *SpotifyClient) AddToQueue(ctx tool.Context, args AddToQueueToolArgs) (AddToQueueToolResult, error) {
+	logger.Printf("AddToQueue: %+v", args)
 	err := c.QueueSong(args)
 	if err != nil {
+		logger.Printf("AddToQueue: error: %v", err)
 		return AddToQueueToolResult{Success: false}, err
 	}
 	return AddToQueueToolResult{Success: true}, nil
 }
 
 // /////// ALBUM TOOLS /////////
-type GetAlbumsToolResult struct{}
-
-func (c *SpotifyClient) GetAlbums(ctx tool.Context, _ struct{}) (GetAlbumsToolResult, error) {
-	return GetAlbumsToolResult{}, nil
+type GetAlbumsToolArgs struct {
+	AlbumIDs []string `json:"album_ids" jsonschema:"Spotify album IDs to look up. Maximum 20"`
 }
 
-type GetAlbumTracksToolResult struct{}
+type GetAlbumsToolResult struct {
+	ToonOutput string `json:"result_as_toon"`
+	Success    bool   `json:"success"`
+}
 
-func (c *SpotifyClient) GetAlbumTracks(ctx tool.Context, _ struct{}) (GetAlbumTracksToolResult, error) {
-	return GetAlbumTracksToolResult{}, nil
+type getAlbumsJSON struct {
+	Albums []Album `json:"albums"`
+}
+
+// GetAlbumsTool returns details for one or more albums by Spotify ID. Max 20.
+func (c *SpotifyClient) GetAlbumsTool(ctx tool.Context, args GetAlbumsToolArgs) (GetAlbumsToolResult, error) {
+	if len(args.AlbumIDs) > 20 {
+		args.AlbumIDs = args.AlbumIDs[:20]
+	}
+	logger.Printf("GetAlbumsTool: ids=%v", args.AlbumIDs)
+	ids := make([]zmb.ID, len(args.AlbumIDs))
+	for i, id := range args.AlbumIDs {
+		ids[i] = zmb.ID(id)
+	}
+
+	results, err := c.client.GetAlbums(context.Background(), ids)
+	if err != nil {
+		logger.Printf("GetAlbumsTool: API error: %v", err)
+		return GetAlbumsToolResult{Success: false}, err
+	}
+
+	var albums []Album
+	for _, a := range results {
+		if a == nil || string(a.ID) == "" {
+			continue
+		}
+		var artistNames []string
+		for _, artist := range a.Artists {
+			artistNames = append(artistNames, artist.Name)
+		}
+		albums = append(albums, Album{
+			URI:         string(a.URI),
+			ID:          string(a.ID),
+			Name:        a.Name,
+			Artists:     strings.Join(artistNames, ", "),
+			TotalTracks: int(a.TotalTracks),
+			ReleaseDate: a.ReleaseDate,
+		})
+	}
+
+	out, encErr := toon.Encode(getAlbumsJSON{Albums: albums}, nil)
+	if encErr != nil {
+		logger.Printf("GetAlbumsTool: encode error: %v", encErr)
+		return GetAlbumsToolResult{Success: false}, encErr
+	}
+	return GetAlbumsToolResult{ToonOutput: out, Success: true}, nil
+}
+
+type GetAlbumTracksToolArgs struct {
+	AlbumID string `json:"album_id" jsonschema:"The Spotify ID of the album"`
+	Limit   int    `json:"limit"    jsonschema:"Maximum tracks to return (1-20). Default 20"`
+	Offset  int    `json:"offset"   jsonschema:"Pagination offset. Default 0"`
+}
+
+type GetAlbumTracksToolResult struct {
+	ToonOutput string `json:"result_as_toon"`
+	Success    bool   `json:"success"`
+}
+
+type getAlbumTracksJSON struct {
+	Tracks []Track `json:"tracks"`
+	Total  int     `json:"total_tracks"`
+}
+
+// GetAlbumTracksTool returns paginated tracks for an album.
+func (c *SpotifyClient) GetAlbumTracksTool(ctx tool.Context, args GetAlbumTracksToolArgs) (GetAlbumTracksToolResult, error) {
+	if args.Limit > 20 {
+		args.Limit = 20
+	}
+	logger.Printf("GetAlbumTracksTool: album=%q limit=%d offset=%d", args.AlbumID, args.Limit, args.Offset)
+	page, err := c.client.GetAlbumTracks(context.Background(), zmb.ID(args.AlbumID), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
+	if err != nil {
+		logger.Printf("GetAlbumTracksTool: API error (album=%q): %v", args.AlbumID, err)
+		return GetAlbumTracksToolResult{Success: false}, err
+	}
+
+	var tracks []Track
+	for _, t := range page.Tracks {
+		if string(t.ID) == "" {
+			continue
+		}
+		var artistNames []string
+		for _, a := range t.Artists {
+			artistNames = append(artistNames, a.Name)
+		}
+		tracks = append(tracks, Track{
+			URI:         string(t.URI),
+			ID:          string(t.ID),
+			Name:        t.Name,
+			Artists:     strings.Join(artistNames, ", "),
+			Album:       t.Album.Name,
+			DurationMs:  int(t.Duration),
+			TrackNumber: int(t.TrackNumber),
+		})
+	}
+
+	out, encErr := toon.Encode(getAlbumTracksJSON{Tracks: tracks, Total: int(page.Total)}, nil)
+	if encErr != nil {
+		logger.Printf("GetAlbumTracksTool: encode error: %v", encErr)
+		return GetAlbumTracksToolResult{Success: false}, encErr
+	}
+	return GetAlbumTracksToolResult{ToonOutput: out, Success: true}, nil
 }
 
 type SaveOrRemoveAlbumsForUserToolResult struct{}

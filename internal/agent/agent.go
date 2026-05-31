@@ -163,6 +163,7 @@ func ADKToolToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
 		ch := make(chan callbackRes)
+		logger.Printf("generateStream: model=%s messages=%d", req.Model, len(req.Contents))
 
 		// First half of this function is a translation layer between ADK <--> Ollama
 		msgs := make([]ollama.Message, 0, len(req.Contents))
@@ -308,7 +309,11 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				}
 				for _, tc := range pendingToolCalls {
 					args := tc.Function.Arguments.ToMap()
-					logger.Printf("dispatching tool call: %s(%v)", tc.Function.Name, args)
+					if b, err := json.Marshal(args); err == nil {
+						logger.Printf("dispatching tool call: %s(%s)", tc.Function.Name, b)
+					} else {
+						logger.Printf("dispatching tool call: %s(%v)", tc.Function.Name, args)
+					}
 					parts = append(parts, genai.NewPartFromFunctionCall(tc.Function.Name, args))
 				}
 				ch <- callbackRes{res: model.LLMResponse{
@@ -411,6 +416,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return resp, nil
 	}
 
+	// TODO(improvement): skip and previous tools could be consolidated into one with a forward/backward boolean flag
 	skipfTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifySkipTrack",
@@ -431,10 +437,10 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
-	userPlaylistsTool, err := functiontool.New(
+	getUserPlaylistsTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifyGetUserPlaylists",
-			Description: "Get a list of the current user's playlists on Spotify. If the user asks for all playlists, leverage the has_more field in the *return* value to determine if you need to make multiple calls to this tool.",
+			Description: "Get a list of the user's playlists on Spotify",
 		}, client.GetUserPlaylistsTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
@@ -471,6 +477,46 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
+	getNowPlayingTool, err := functiontool.New(
+		functiontool.Config{
+			Name: "spotifyGetNowPlaying",
+			Description: "Get the song that is currently playing on Spotify",
+		}, client.GetNowPlayingTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	getPlaylistTracksTool, err := functiontool.New(
+		functiontool.Config{
+			Name: "spotifyGetPlaylistTracks",
+			Description: "Get a list of tracks from a playlist owned by the user or where the user is a collaborator on Spotify. Attempting to get tracks of a non-user owned/collaborated playlist will surface FORBIDDEN errors.",
+		}, client.GetPlaylistTracksTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	getAlbumsTool, err := functiontool.New(
+		functiontool.Config{
+			Name: "spotifyGetAlbums",
+			Description: "Get the details of one or more albums on Spotify",
+		}, client.GetAlbumsTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	getAlbumTracksTool, err := functiontool.New(
+		functiontool.Config{
+			Name: "spotifyGetAlbumTracks",
+			Description: "Get a list of tracks from an album on Spotify",
+		}, client.GetAlbumTracksTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
 	// TODO(improvement, not planned):
 	// 	- add compaction depending on yaml file. Why not planned: This is unecessary because the user should just be able to /clear
 	ag, err := llmagent.New(llmagent.Config{
@@ -481,10 +527,14 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		Tools: []tool.Tool{
 			skipfTool,
 			skipbTool,
-			userPlaylistsTool,
+			getUserPlaylistsTool,
 			playItemTool,
 			searchSpotifyTool,
 			addToQueueTool,
+			getNowPlayingTool,
+			getPlaylistTracksTool,
+			getAlbumsTool,
+			getAlbumTracksTool,
 		},
 	})
 	if err != nil {
