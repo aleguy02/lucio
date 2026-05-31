@@ -3,12 +3,22 @@ package spotify
 import (
 	"aleguy02/spotify-tui/internal/toon"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	zmb "github.com/zmb3/spotify/v2"
 	"google.golang.org/adk/tool"
 )
+
+// spotifyErrStatus extracts the HTTP status code from a zmb.Error, returning 0 if unavailable.
+func spotifyErrStatus(err error) int {
+	var sErr zmb.Error
+	if errors.As(err, &sErr) {
+		return sErr.Status
+	}
+	return 0
+}
 
 // TOON Types
 
@@ -112,7 +122,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(artists) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
-				logger.Printf("SearchSpotifyTool: artist search error (query=%q offset=%d): %v", args.Query, offset, err)
+				logger.Printf("SearchSpotifyTool: artist search error (query=%q offset=%d status=%d): %v", args.Query, offset, spotifyErrStatus(err), err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Artists == nil {
@@ -132,7 +142,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(albums) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
-				logger.Printf("SearchSpotifyTool: album search error (query=%q offset=%d): %v", args.Query, offset, err)
+				logger.Printf("SearchSpotifyTool: album search error (query=%q offset=%d status=%d): %v", args.Query, offset, spotifyErrStatus(err), err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Albums == nil {
@@ -163,7 +173,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(tracks) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
-				logger.Printf("SearchSpotifyTool: track search error (query=%q offset=%d): %v", args.Query, offset, err)
+				logger.Printf("SearchSpotifyTool: track search error (query=%q offset=%d status=%d): %v", args.Query, offset, spotifyErrStatus(err), err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Tracks == nil {
@@ -195,7 +205,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 		for offset := 0; len(playlists) < limit && offset < retries; offset++ {
 			res, err := c.client.Search(context.Background(), args.Query, searchType, zmb.Limit(limit), zmb.Offset(offset*limit))
 			if err != nil {
-				logger.Printf("SearchSpotifyTool: playlist search error (query=%q offset=%d): %v", args.Query, offset, err)
+				logger.Printf("SearchSpotifyTool: playlist search error (query=%q offset=%d status=%d): %v", args.Query, offset, spotifyErrStatus(err), err)
 				return SearchSpotifyToolResult{Success: false}, err
 			}
 			if res.Playlists == nil {
@@ -241,7 +251,7 @@ type GetNowPlayingToolResult struct {
 func (c *SpotifyClient) GetNowPlayingTool(ctx tool.Context, _ struct{}) (GetNowPlayingToolResult, error) {
 	result, err := c.client.PlayerState(context.Background())
 	if err != nil {
-		logger.Printf("GetNowPlayingTool: PlayerState error: %v", err)
+		logger.Printf("GetNowPlayingTool: PlayerState error (status=%d): %v", spotifyErrStatus(err), err)
 		return GetNowPlayingToolResult{Success: false}, err
 	}
 
@@ -298,7 +308,7 @@ func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlayl
 	logger.Printf("GetUserPlaylistsTool: limit=%d offset=%d", args.Limit, args.Offset)
 	page, err := c.client.CurrentUsersPlaylists(context.Background(), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
 	if err != nil {
-		logger.Printf("GetUserPlaylistsTool: API error: %v", err)
+		logger.Printf("GetUserPlaylistsTool: API error (status=%d): %v", spotifyErrStatus(err), err)
 		return GetUserPlaylistsToolResult{Success: false}, err
 	}
 
@@ -349,7 +359,7 @@ func (c *SpotifyClient) GetPlaylistTracksTool(ctx tool.Context, args GetPlaylist
 	logger.Printf("GetPlaylistTracksTool: playlist=%q limit=%d offset=%d", args.PlaylistID, args.Limit, args.Offset)
 	page, err := c.client.GetPlaylistItems(context.Background(), zmb.ID(args.PlaylistID), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
 	if err != nil {
-		logger.Printf("GetPlaylistTracksTool: API error (playlist=%q): %v", args.PlaylistID, err)
+		logger.Printf("GetPlaylistTracksTool: API error (playlist=%q status=%d): %v", args.PlaylistID, spotifyErrStatus(err), err)
 		return GetPlaylistTracksToolResult{Success: false}, err
 	}
 
@@ -404,7 +414,7 @@ type PlayItemToolResult struct {
 func (c *SpotifyClient) PlayItemTool(ctx tool.Context, args PlayItemToolArgs) (PlayItemToolResult, error) {
 	logger.Printf("PlayItemTool: %+v", args)
 	if err := c.ExecutePlayback(args); err != nil {
-		logger.Printf("PlayItemTool: error: %v", err)
+		logger.Printf("PlayItemTool: error (status=%d): %v", spotifyErrStatus(err), err)
 		return PlayItemToolResult{Success: false}, err
 	}
 	return PlayItemToolResult{Success: true}, nil
@@ -416,7 +426,7 @@ type SkipNextToolResult struct {
 
 func (c *SpotifyClient) SkipNextTool(ctx tool.Context, _ struct{}) (SkipNextToolResult, error) {
 	if err := c.skipForward(); err != nil {
-		logger.Printf("SkipNextTool: error: %v", err)
+		logger.Printf("SkipNextTool: error (status=%d): %v", spotifyErrStatus(err), err)
 		return SkipNextToolResult{Success: false}, err
 	}
 	return SkipNextToolResult{Success: true}, nil
@@ -428,7 +438,7 @@ type SkipPreviousToolResult struct {
 
 func (c *SpotifyClient) SkipPreviousTool(ctx tool.Context, _ struct{}) (SkipPreviousToolResult, error) {
 	if err := c.skipBack(); err != nil {
-		logger.Printf("SkipPreviousTool: error: %v", err)
+		logger.Printf("SkipPreviousTool: error (status=%d): %v", spotifyErrStatus(err), err)
 		return SkipPreviousToolResult{Success: false}, err
 	}
 	return SkipPreviousToolResult{Success: true}, nil
@@ -456,7 +466,7 @@ func (c *SpotifyClient) AddToQueue(ctx tool.Context, args AddToQueueToolArgs) (A
 	logger.Printf("AddToQueue: %+v", args)
 	err := c.QueueSong(args)
 	if err != nil {
-		logger.Printf("AddToQueue: error: %v", err)
+		logger.Printf("AddToQueue: error (status=%d): %v", spotifyErrStatus(err), err)
 		return AddToQueueToolResult{Success: false}, err
 	}
 	return AddToQueueToolResult{Success: true}, nil
@@ -489,7 +499,7 @@ func (c *SpotifyClient) GetAlbumsTool(ctx tool.Context, args GetAlbumsToolArgs) 
 
 	results, err := c.client.GetAlbums(context.Background(), ids)
 	if err != nil {
-		logger.Printf("GetAlbumsTool: API error: %v", err)
+		logger.Printf("GetAlbumsTool: API error (status=%d): %v", spotifyErrStatus(err), err)
 		return GetAlbumsToolResult{Success: false}, err
 	}
 
@@ -544,7 +554,7 @@ func (c *SpotifyClient) GetAlbumTracksTool(ctx tool.Context, args GetAlbumTracks
 	logger.Printf("GetAlbumTracksTool: album=%q limit=%d offset=%d", args.AlbumID, args.Limit, args.Offset)
 	page, err := c.client.GetAlbumTracks(context.Background(), zmb.ID(args.AlbumID), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
 	if err != nil {
-		logger.Printf("GetAlbumTracksTool: API error (album=%q): %v", args.AlbumID, err)
+		logger.Printf("GetAlbumTracksTool: API error (album=%q status=%d): %v", args.AlbumID, spotifyErrStatus(err), err)
 		return GetAlbumTracksToolResult{Success: false}, err
 	}
 
