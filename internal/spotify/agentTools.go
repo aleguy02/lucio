@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 
 	zmb "github.com/zmb3/spotify/v2"
@@ -357,34 +359,16 @@ func (c *SpotifyClient) GetPlaylistTracksTool(ctx tool.Context, args GetPlaylist
 		args.Limit = 20
 	}
 	logger.Printf("GetPlaylistTracksTool: playlist=%q limit=%d offset=%d", args.PlaylistID, args.Limit, args.Offset)
-	page, err := c.client.GetPlaylistItems(context.Background(), zmb.ID(args.PlaylistID), zmb.Limit(args.Limit), zmb.Offset(args.Offset))
+	tracks, total, err := c.fetchPlaylistItems(context.Background(), args.PlaylistID, url.Values{
+		"limit":  []string{strconv.Itoa(args.Limit)},
+     	"offset": []string{strconv.Itoa(args.Offset)},
+	})
 	if err != nil {
 		logger.Printf("GetPlaylistTracksTool: API error (playlist=%q status=%d): %v", args.PlaylistID, spotifyErrStatus(err), err)
 		return GetPlaylistTracksToolResult{Success: false}, err
 	}
 
-	var tracks []Track
-	for _, item := range page.Items {
-		t := item.Track.Track
-		if t == nil || string(t.ID) == "" {
-			continue
-		}
-		var artistNames []string
-		for _, a := range t.Artists {
-			artistNames = append(artistNames, a.Name)
-		}
-		tracks = append(tracks, Track{
-			URI:         string(t.URI),
-			ID:          string(t.ID),
-			Name:        t.Name,
-			Artists:     strings.Join(artistNames, ", "),
-			Album:       t.Album.Name,
-			DurationMs:  int(t.Duration),
-			TrackNumber: int(t.TrackNumber),
-		})
-	}
-
-	out, encErr := toon.Encode(getPlaylistTracksJSON{Tracks: tracks, Total: int(page.Total)}, nil)
+	out, encErr := toon.Encode(getPlaylistTracksJSON{Tracks: tracks, Total: total}, nil)
 	if encErr != nil {
 		logger.Printf("GetPlaylistTracksTool: encode error: %v", encErr)
 		return GetPlaylistTracksToolResult{Success: false}, encErr

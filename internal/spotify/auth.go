@@ -39,6 +39,7 @@ func init() {
 
 type SpotifyClient struct {
 	client *zmb.Client
+	httpClient *http.Client
 }
 
 func NewSpotifyClient() (*SpotifyClient, error) {
@@ -74,31 +75,31 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 
 	if tok, err := loadToken(); err == nil {
 		httpClient := auth.Client(context.Background(), tok)
-		return &SpotifyClient{client: zmb.New(httpClient)}, nil
+		return &SpotifyClient{client: zmb.New(httpClient), httpClient: httpClient}, nil
 	}
 
-	client, err := runOAuthFlow(auth, c.RedirectURI)
+	client, httpClient, err := runOAuthFlow(auth, c.RedirectURI)
 	if err != nil {
 		logger.Printf("authentication failed: %v", err)
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
-	return &SpotifyClient{client: client}, nil
+	return &SpotifyClient{client: client, httpClient: httpClient}, nil
 }
 
 /*
  * Auth Flow
  */
-func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Client, error) {
+func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Client, *http.Client, error) {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
-		return nil, fmt.Errorf("invalid redirect URI %q: %w", redirectURI, err)
+		return nil, nil, fmt.Errorf("invalid redirect URI %q: %w", redirectURI, err)
 	}
 
 	addr := ":" + u.Port()
 	callbackPath := u.Path
 
 	const state = "spotify-hands-auth"
-	clientCh := make(chan *zmb.Client, 1)
+	httpClientCh := make(chan *http.Client, 1)
 	errCh := make(chan error, 1)
 
 	mux := http.NewServeMux()
@@ -122,7 +123,7 @@ func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Cli
 		if _, err := fmt.Fprintln(w, "Authentication successful! You can close this tab."); err != nil {
 			logger.Printf("failed to write authentication success message: %v", err)
 		}
-		clientCh <- zmb.New(auth.Client(r.Context(), tok))
+		httpClientCh <- auth.Client(r.Context(), tok)
 	})
 
 	go func() {
@@ -145,13 +146,14 @@ func runOAuthFlow(auth *spotifyauth.Authenticator, redirectURI string) (*zmb.Cli
 	}()
 
 	select {
-	case client := <-clientCh:
+	case httpClient := <-httpClientCh:
+		client := zmb.New(httpClient)
 		fmt.Println("Authenticated successfully.")
-		return client, nil
+		return client, httpClient, nil
 	case err := <-errCh:
-		return nil, err
+		return nil, nil, err
 	case <-time.After(5 * time.Minute):
-		return nil, fmt.Errorf("authentication timed out after 5 minutes")
+		return nil, nil, fmt.Errorf("authentication timed out after 5 minutes")
 	}
 }
 

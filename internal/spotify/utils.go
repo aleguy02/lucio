@@ -2,7 +2,10 @@ package spotify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -138,3 +141,92 @@ func (c *SpotifyClient) playFromContext(uri zmb.URI) error {
 	}
 	return err
 }
+
+/* IMPORTANT
+ * reimplementation of zmb's GetPlaylistItems since that function is hitting a deprecated endpoint and uses some deprecated return values
+ */
+var baseURL string = "https://api.spotify.com/v1/"
+type PlaylistItemPage struct {
+	basePage
+	Items []PlaylistItem `json:"items"`
+}
+type basePage struct {
+	Endpoint string `json:"href"`
+	Limit zmb.Numeric `json:"limit"`
+	Offset zmb.Numeric `json:"offset"`
+	Total zmb.Numeric `json:"total"`
+	Next string `json:"next"`
+	Previous string `json:"previous"`
+}
+type PlaylistItem struct {
+	AddedAt string `json:"added_at"`
+	AddedBy zmb.User `json:"added_by"`
+	IsLocal bool `json:"is_local"`
+	Track zmb.PlaylistItemTrack `json:"item"`
+}
+
+func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID string, params url.Values) ([]Track, int, error) {
+	spotifyURL := fmt.Sprintf("%splaylists/%s/items", baseURL, playlistID)
+
+	if params == nil {
+		params = url.Values{}
+	}
+	if queryString := params.Encode(); queryString != "" {
+		spotifyURL += "?" + queryString
+	}
+
+	var result PlaylistItemPage
+
+	// GET
+	req, err := http.NewRequestWithContext(ctx, "GET", spotifyURL, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	defer resp.Body.Close()
+
+	// rate limited. TODO
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, 0, fmt.Errorf("spotify: too many requests (status=%d)", resp.StatusCode)
+	}
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, 0, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, fmt.Errorf("spotify: status not OK (status=%d)", resp.StatusCode)
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var tracks []Track
+	for _, item := range result.Items {
+		t := item.Track.Track
+		if t == nil || string(t.ID) == "" {
+			continue
+		}
+		var artistNames []string
+		for _, a := range t.Artists {
+			artistNames = append(artistNames, a.Name)
+		}
+		tracks = append(tracks, Track{
+			URI:         string(t.URI),
+			ID:          string(t.ID),
+			Name:        t.Name,
+			Artists:     strings.Join(artistNames, ", "),
+			Album:       t.Album.Name,
+			DurationMs:  int(t.Duration),
+			TrackNumber: int(t.TrackNumber),
+		})
+	}
+	return tracks, int(result.Total), nil
+}
+/* END
+ *
+ */
