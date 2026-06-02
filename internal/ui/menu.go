@@ -81,6 +81,10 @@ type Menu struct {
 	spotifyItem     SpotifyItemModel
 	spotifyItemPrev menuState
 
+	history    []string
+	historyIdx int
+	inputDraft string
+
 	currentTab tabIndex
 	nowPlaying nowPlaying
 	guide      guide
@@ -215,6 +219,8 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = terminalMode
 			m.alert = ""
 			m.successAlert = ""
+			m.historyIdx = len(m.history)
+			m.inputDraft = ""
 			m.textInput.Focus()
 			return m, nil
 		}
@@ -325,6 +331,15 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 
+				if len(m.history) == 0 || m.history[len(m.history)-1] != input {
+					m.history = append(m.history, input)
+					if len(m.history) > 100 {
+						m.history = m.history[1:]
+					}
+				}
+				m.historyIdx = len(m.history)
+				m.inputDraft = ""
+
 				parts := strings.Fields(input)
 				arg := ""
 				if len(parts) > 1 {
@@ -370,6 +385,31 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				TerminalLog.Printf("command: %q arg: %q\n", cmdStr, arg)
 				return m, sp.SpotifyActionCmd(sp.SpotifyActionMsg{Command: cmdStr, Arg: arg})
+
+			case key.Matches(msg, key.NewBinding(key.WithKeys("up"))):
+				if len(m.history) == 0 {
+					return m, nil
+				}
+				if m.historyIdx == len(m.history) {
+					m.inputDraft = m.textInput.Value()
+				}
+				if m.historyIdx > 0 {
+					m.historyIdx--
+				}
+				m.textInput.SetValue(m.history[m.historyIdx])
+				return m, nil
+
+			case key.Matches(msg, key.NewBinding(key.WithKeys("down"))):
+				if m.historyIdx >= len(m.history) {
+					return m, nil
+				}
+				m.historyIdx++
+				if m.historyIdx == len(m.history) {
+					m.textInput.SetValue(m.inputDraft)
+				} else {
+					m.textInput.SetValue(m.history[m.historyIdx])
+				}
+				return m, nil
 
 			default:
 				m.textInput, cmd = m.textInput.Update(msg)

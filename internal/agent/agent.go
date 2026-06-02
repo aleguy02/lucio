@@ -471,7 +471,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		functiontool.Config{
 			Name:        "spotifyAddToQueue",
 			Description: "Add a track to the queue on Spotify. *Only* supports tracks.",
-		}, client.AddToQueue)
+		}, client.AddToQueueTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
 		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)

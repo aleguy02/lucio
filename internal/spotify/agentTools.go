@@ -462,11 +462,11 @@ type AddToQueueToolResult struct {
 	Success bool `json:"success"`
 }
 
-func (c *SpotifyClient) AddToQueue(ctx tool.Context, args AddToQueueToolArgs) (AddToQueueToolResult, error) {
+func (c *SpotifyClient) AddToQueueTool(ctx tool.Context, args AddToQueueToolArgs) (AddToQueueToolResult, error) {
 	logger.Printf("AddToQueue: %+v", args)
 	err := c.QueueSong(args)
 	if err != nil {
-		logger.Printf("AddToQueue: error (status=%d): %v", spotifyErrStatus(err), err)
+		logger.Printf("AddToQueueTool: error (status=%d): %v", spotifyErrStatus(err), err)
 		return AddToQueueToolResult{Success: false}, err
 	}
 	return AddToQueueToolResult{Success: true}, nil
