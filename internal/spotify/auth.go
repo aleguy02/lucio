@@ -38,7 +38,7 @@ func init() {
 }
 
 type SpotifyClient struct {
-	client *zmb.Client
+	client     *zmb.Client
 	httpClient *http.Client
 }
 

@@ -146,23 +146,24 @@ func (c *SpotifyClient) playFromContext(uri zmb.URI) error {
  * reimplementation of zmb's GetPlaylistItems since that function is hitting a deprecated endpoint and uses some deprecated return values
  */
 var baseURL string = "https://api.spotify.com/v1/"
+
 type PlaylistItemPage struct {
 	basePage
 	Items []PlaylistItem `json:"items"`
 }
 type basePage struct {
-	Endpoint string `json:"href"`
-	Limit zmb.Numeric `json:"limit"`
-	Offset zmb.Numeric `json:"offset"`
-	Total zmb.Numeric `json:"total"`
-	Next string `json:"next"`
-	Previous string `json:"previous"`
+	Endpoint string      `json:"href"`
+	Limit    zmb.Numeric `json:"limit"`
+	Offset   zmb.Numeric `json:"offset"`
+	Total    zmb.Numeric `json:"total"`
+	Next     string      `json:"next"`
+	Previous string      `json:"previous"`
 }
 type PlaylistItem struct {
-	AddedAt string `json:"added_at"`
-	AddedBy zmb.User `json:"added_by"`
-	IsLocal bool `json:"is_local"`
-	Track zmb.PlaylistItemTrack `json:"item"`
+	AddedAt string                `json:"added_at"`
+	AddedBy zmb.User              `json:"added_by"`
+	IsLocal bool                  `json:"is_local"`
+	Track   zmb.PlaylistItemTrack `json:"item"`
 }
 
 func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID string, params url.Values) ([]Track, int, error) {
@@ -187,7 +188,7 @@ func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID strin
 		return nil, 0, err
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// rate limited. TODO
 	if resp.StatusCode == http.StatusTooManyRequests {
@@ -227,6 +228,7 @@ func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID strin
 	}
 	return tracks, int(result.Total), nil
 }
+
 /* END
  *
  */

@@ -472,6 +472,7 @@ func (d *decoder) decodeListItem(depth int, parentDelim Delimiter) (any, error) 
 			if d.strict {
 				if _, dup := obj.Get(k); dup {
 					// Mirror duplicate-key behavior; defer to error path.
+					_ = dup
 				}
 			}
 			obj.Set(k, v)

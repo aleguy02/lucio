@@ -479,7 +479,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 
 	getNowPlayingTool, err := functiontool.New(
 		functiontool.Config{
-			Name: "spotifyGetNowPlaying",
+			Name:        "spotifyGetNowPlaying",
 			Description: "Get the song that is currently playing on Spotify",
 		}, client.GetNowPlayingTool)
 	if err != nil {
@@ -489,7 +489,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 
 	getPlaylistTracksTool, err := functiontool.New(
 		functiontool.Config{
-			Name: "spotifyGetPlaylistTracks",
+			Name:        "spotifyGetPlaylistTracks",
 			Description: "Get a list of tracks from a playlist owned by the user or where the user is a collaborator on Spotify. Attempting to get tracks of a non-user owned/collaborated playlist will surface FORBIDDEN errors.",
 		}, client.GetPlaylistTracksTool)
 	if err != nil {
@@ -499,7 +499,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 
 	getAlbumsTool, err := functiontool.New(
 		functiontool.Config{
-			Name: "spotifyGetAlbums",
+			Name:        "spotifyGetAlbums",
 			Description: "Get the details of one or more albums on Spotify",
 		}, client.GetAlbumsTool)
 	if err != nil {
@@ -509,7 +509,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 
 	getAlbumTracksTool, err := functiontool.New(
 		functiontool.Config{
-			Name: "spotifyGetAlbumTracks",
+			Name:        "spotifyGetAlbumTracks",
 			Description: "Get a list of tracks from an album on Spotify",
 		}, client.GetAlbumTracksTool)
 	if err != nil {

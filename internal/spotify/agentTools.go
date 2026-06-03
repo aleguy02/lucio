@@ -33,23 +33,23 @@ type Artist struct {
 
 // Album is a simplified representation of a Spotify album.
 type Album struct {
-	URI                  string `json:"uri"`
-	ID                   string `json:"id"`
-	Name                 string `json:"name"`
-	Artists string `json:"artists"`
-	TotalTracks          int    `json:"total_tracks"`
-	ReleaseDate          string `json:"release_date"`
+	URI         string `json:"uri"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Artists     string `json:"artists"`
+	TotalTracks int    `json:"total_tracks"`
+	ReleaseDate string `json:"release_date"`
 }
 
 // Track is a simplified representation of a Spotify track.
 type Track struct {
-	URI                  string `json:"uri"`
-	ID                   string `json:"id"`
-	Name                 string `json:"name"`
-	Artists string `json:"artists"`
-	Album                string `json:"album"`
-	DurationMs           int    `json:"duration_ms"`
-	TrackNumber          int    `json:"track_number"`
+	URI         string `json:"uri"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Artists     string `json:"artists"`
+	Album       string `json:"album"`
+	DurationMs  int    `json:"duration_ms"`
+	TrackNumber int    `json:"track_number"`
 }
 
 // Playlist is a simplified representation of a Spotify playlist.
@@ -159,12 +159,12 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 					artistNames = append(artistNames, artist.Name)
 				}
 				albums = append(albums, Album{
-					URI:                  string(a.URI),
-					ID:                   string(a.ID),
-					Name:                 a.Name,
-					Artists: strings.Join(artistNames, ", "),
-					TotalTracks:          int(a.TotalTracks),
-					ReleaseDate:          a.ReleaseDate,
+					URI:         string(a.URI),
+					ID:          string(a.ID),
+					Name:        a.Name,
+					Artists:     strings.Join(artistNames, ", "),
+					TotalTracks: int(a.TotalTracks),
+					ReleaseDate: a.ReleaseDate,
 				})
 			}
 		}
@@ -190,13 +190,13 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 					artistNames = append(artistNames, artist.Name)
 				}
 				tracks = append(tracks, Track{
-					URI:                  string(t.URI),
-					ID:                   string(t.ID),
-					Name:                 t.Name,
-					Artists: strings.Join(artistNames, ", "),
-					Album:                t.Album.Name,
-					DurationMs:           int(t.Duration),
-					TrackNumber:          int(t.TrackNumber),
+					URI:         string(t.URI),
+					ID:          string(t.ID),
+					Name:        t.Name,
+					Artists:     strings.Join(artistNames, ", "),
+					Album:       t.Album.Name,
+					DurationMs:  int(t.Duration),
+					TrackNumber: int(t.TrackNumber),
 				})
 			}
 		}
@@ -361,7 +361,7 @@ func (c *SpotifyClient) GetPlaylistTracksTool(ctx tool.Context, args GetPlaylist
 	logger.Printf("GetPlaylistTracksTool: playlist=%q limit=%d offset=%d", args.PlaylistID, args.Limit, args.Offset)
 	tracks, total, err := c.fetchPlaylistItems(context.Background(), args.PlaylistID, url.Values{
 		"limit":  []string{strconv.Itoa(args.Limit)},
-     	"offset": []string{strconv.Itoa(args.Offset)},
+		"offset": []string{strconv.Itoa(args.Offset)},
 	})
 	if err != nil {
 		logger.Printf("GetPlaylistTracksTool: API error (playlist=%q status=%d): %v", args.PlaylistID, spotifyErrStatus(err), err)
