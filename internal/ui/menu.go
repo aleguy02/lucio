@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"aleguy02/spotify-tui/internal/gestures"
 	sp "aleguy02/spotify-tui/internal/spotify"
 
 	"charm.land/bubbles/v2/help"
@@ -180,9 +179,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 	m.alert = ""
 	// 	return m, nil
 
-	case gestures.GestureClientExitedMsg:
-		m.modalitiesList.Modalities[0].Enabled = false
-		return m, nil
+
 
 	case sp.DevicesResultMsg:
 		m.successAlert = string(msg)

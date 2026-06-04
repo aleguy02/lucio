@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/common-nighthawk/go-figure"
 
-	"aleguy02/spotify-tui/internal/gestures"
+
 )
 
 // Modality represents a feature or microservice that can be toggled.
@@ -83,7 +83,6 @@ func NewModalities() ModalitiesModel {
 
 	return ModalitiesModel{
 		Modalities: []Modality{
-			{ID: "gestures", Name: "HAND GESTURES", Description: "Playback control via hand gestures", Enabled: false},
 			{ID: "agent", Name: "AGENT", Description: "Agentic mode\n", Enabled: false},
 		},
 		Keys: defaultModalitiesKeyMap(),
@@ -130,10 +129,7 @@ func (m ModalitiesModel) Update(msg tea.Msg) (ModalitiesModel, tea.Cmd) {
 		case key.Matches(msg, m.Keys.Toggle):
 			m.Modalities[m.Cursor].Enabled = !m.Modalities[m.Cursor].Enabled
 
-			switch m.Modalities[m.Cursor].ID {
-			case "gestures":
-				return m, gestures.ToggleGesturesCmd(m.Modalities[m.Cursor].Enabled)
-			}
+
 		}
 	}
 	return m, nil
