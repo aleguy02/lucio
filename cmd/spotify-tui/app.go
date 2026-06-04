@@ -106,17 +106,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			results, err := m.spotifyClient.HandleSearch(msg)
 			if err != nil {
 				errMsg := sp.SpotifyRouteErrorMsg(err.Error())
-				return m, tea.Batch(func() tea.Msg { return errMsg })
+				return m, func() tea.Msg { return errMsg }
 			}
-			return m, tea.Batch(func() tea.Msg { return sp.SearchResultsMsg(results) })
+			return m, func() tea.Msg { return sp.SearchResultsMsg(results) }
 		}
 		if msg.Command == sp.CmdPlaylists {
 			results, _, _, err := m.spotifyClient.HandlePlaylists(7, 0)
 			if err != nil {
 				errMsg := sp.SpotifyRouteErrorMsg(err.Error())
-				return m, tea.Batch(func() tea.Msg { return errMsg })
+				return m, func() tea.Msg { return errMsg }
 			}
-			return m, tea.Batch(func() tea.Msg { return sp.SearchResultsMsg(results) })
+			return m, func() tea.Msg { return sp.SearchResultsMsg(results) }
 		}
 		// if msg.Command == sp.CmdLike {
 		// 	if err := m.spotifyClient.LikeTrack(msg.Arg); err != nil {
@@ -131,30 +131,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		result, err := m.spotifyClient.Route(msg)
 		if err != nil {
 			errMsg := sp.SpotifyRouteErrorMsg(err.Error())
-			return m, tea.Batch(func() tea.Msg { return errMsg })
+			return m, func() tea.Msg { return errMsg }
 		}
 		if result != "" {
-			return m, tea.Batch(func() tea.Msg { return sp.DevicesResultMsg(result) })
+			return m, func() tea.Msg { return sp.DevicesResultMsg(result) }
 		}
 		return m, nil
 
 	case sp.PlaybackMsg:
 		if err := m.spotifyClient.ExecutePlayback(msg); err != nil {
 			errMsg := sp.SpotifyRouteErrorMsg(err.Error())
-			return m, tea.Batch(func() tea.Msg { return errMsg })
+			return m, func() tea.Msg { return errMsg }
 		}
 		return m, nil
 
 	case sp.QueueMsg:
 		if err := m.spotifyClient.QueueSong(msg); err != nil {
 			errMsg := sp.SpotifyRouteErrorMsg(err.Error())
-			return m, tea.Batch(func() tea.Msg { return errMsg })
+			return m, func() tea.Msg { return errMsg }
 		}
 		label := "queued"
 		if msg.Name != "" {
 			label = fmt.Sprintf("queued: %s", msg.Name)
 		}
-		return m, tea.Batch(func() tea.Msg { return sp.QueueSuccessMsg(label) })
+		return m, func() tea.Msg { return sp.QueueSuccessMsg(label) }
 
 	case ui.AgentQueryMsg:
 		if msg.Text == "/clear" {
@@ -197,7 +197,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		stateMsg := sp.SpotifyPlaybackStateMsg{State: state}
 		m.views[0], _ = m.views[0].Update(stateMsg)
-		return m, tea.Batch(doTick())
+		return m, doTick()
 
 
 
