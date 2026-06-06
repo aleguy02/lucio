@@ -187,8 +187,22 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case sp.SearchResultsMsg:
-		m.searchResults = NewInteractiveSearchResultsModel([]sp.SpotifyItem(msg))
+		m.searchResults = NewInteractiveSearchResultsModel(msg.Items, msg.Action)
 		m.state = searchResultsMode
+		return m, nil
+
+	case sp.SearchMoreResultsMsg:
+		prevLen := len(m.searchResults.allItems)
+		m.searchResults.allItems = append(m.searchResults.allItems, msg.Items...)
+		m.searchResults.loading = false
+		nextStart := m.searchResults.windowStart + searchPageSize
+		if nextStart >= prevLen && nextStart < len(m.searchResults.allItems) {
+			m.searchResults.windowStart = nextStart
+			m.searchResults.cursor = 0
+		}
+		if !msg.HasMore || len(m.searchResults.allItems) >= searchResultsHardCap {
+			m.searchResults.savedAction = sp.SpotifyActionMsg{}
+		}
 		return m, nil
 
 	case sp.SpotifyPlaybackStateMsg:

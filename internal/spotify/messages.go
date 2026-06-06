@@ -48,7 +48,22 @@ type SpotifyPlaybackStateMsg struct {
 type SpotifyRouteErrorMsg string
 
 // SearchResultsMsg carries results from a completed search back to the active view.
-type SearchResultsMsg []SpotifyItem
+type SearchResultsMsg struct {
+	Items  []SpotifyItem
+	Action SpotifyActionMsg // zero value → no lazy loading
+}
+
+// SearchMoreMsg is emitted by the search list when the user scrolls past the last item.
+type SearchMoreMsg struct {
+	Action SpotifyActionMsg
+	Offset int
+}
+
+// SearchMoreResultsMsg carries the next page of results to append to the list.
+type SearchMoreResultsMsg struct {
+	Items   []SpotifyItem
+	HasMore bool
+}
 
 // PlaybackMsg requests playback of a Spotify item.
 type PlaybackMsg struct {

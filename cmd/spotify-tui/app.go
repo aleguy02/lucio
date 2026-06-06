@@ -103,20 +103,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case sp.SpotifyActionMsg:
 		if msg.Command == sp.CmdSearch {
-			results, err := m.spotifyClient.HandleSearch(msg)
+			results, err := m.spotifyClient.HandleSearch(msg, 0)
 			if err != nil {
 				errMsg := sp.SpotifyRouteErrorMsg(err.Error())
 				return m, func() tea.Msg { return errMsg }
 			}
-			return m, func() tea.Msg { return sp.SearchResultsMsg(results) }
+			return m, func() tea.Msg { return sp.SearchResultsMsg{Items: results, Action: msg} }
 		}
 		if msg.Command == sp.CmdPlaylists {
-			results, _, _, err := m.spotifyClient.HandlePlaylists(7, 0)
+			results, _, hasMore, err := m.spotifyClient.HandlePlaylists(7, 0)
 			if err != nil {
 				errMsg := sp.SpotifyRouteErrorMsg(err.Error())
 				return m, func() tea.Msg { return errMsg }
 			}
-			return m, func() tea.Msg { return sp.SearchResultsMsg(results) }
+			var action sp.SpotifyActionMsg
+			if hasMore {
+				action = sp.SpotifyActionMsg{Command: sp.CmdPlaylists}
+			}
+			return m, func() tea.Msg { return sp.SearchResultsMsg{Items: results, Action: action} }
 		}
 		// if msg.Command == sp.CmdLike {
 		// 	if err := m.spotifyClient.LikeTrack(msg.Arg); err != nil {
@@ -137,6 +141,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg { return sp.DevicesResultMsg(result) }
 		}
 		return m, nil
+
+	case sp.SearchMoreMsg:
+		if msg.Action.Command == sp.CmdPlaylists {
+			results, _, hasMore, err := m.spotifyClient.HandlePlaylists(7, msg.Offset)
+			if err != nil {
+				errMsg := sp.SpotifyRouteErrorMsg(err.Error())
+				return m, func() tea.Msg { return errMsg }
+			}
+			return m, func() tea.Msg { return sp.SearchMoreResultsMsg{Items: results, HasMore: hasMore} }
+		}
+		results, err := m.spotifyClient.HandleSearch(msg.Action, msg.Offset)
+		if err != nil {
+			errMsg := sp.SpotifyRouteErrorMsg(err.Error())
+			return m, func() tea.Msg { return errMsg }
+		}
+		return m, func() tea.Msg { return sp.SearchMoreResultsMsg{Items: results, HasMore: len(results) > 0} }
 
 	case sp.PlaybackMsg:
 		if err := m.spotifyClient.ExecutePlayback(msg); err != nil {

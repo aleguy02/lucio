@@ -61,21 +61,42 @@ func defaultSearchResultsKeyMap() searchResultsKeyMap {
 	}
 }
 
+const (
+	searchResultsHardCap = 30
+	searchPageSize       = 7
+)
+
 type InteractiveSearchResultsModel struct {
-	items  []sp.SpotifyItem
-	cursor int
-	Keys   searchResultsKeyMap
+	allItems    []sp.SpotifyItem
+	windowStart int
+	cursor      int
+	Keys        searchResultsKeyMap
+	savedAction sp.SpotifyActionMsg
+	loading     bool
 }
 
-func NewInteractiveSearchResultsModel(items []sp.SpotifyItem) InteractiveSearchResultsModel {
-	return InteractiveSearchResultsModel{items: items, Keys: defaultSearchResultsKeyMap()}
+func NewInteractiveSearchResultsModel(items []sp.SpotifyItem, action sp.SpotifyActionMsg) InteractiveSearchResultsModel {
+	return InteractiveSearchResultsModel{
+		allItems:    items,
+		Keys:        defaultSearchResultsKeyMap(),
+		savedAction: action,
+	}
+}
+
+// visibleCount returns how many items are shown in the current window.
+func (m InteractiveSearchResultsModel) visibleCount() int {
+	n := len(m.allItems) - m.windowStart
+	if n > searchPageSize {
+		return searchPageSize
+	}
+	return n
 }
 
 func (m InteractiveSearchResultsModel) Selected() sp.SpotifyItem {
-	if len(m.items) == 0 {
+	if len(m.allItems) == 0 {
 		return sp.SpotifyItem{}
 	}
-	return m.items[m.cursor]
+	return m.allItems[m.windowStart+m.cursor]
 }
 
 // Update handles cursor movement. State transitions (ESC, TAB, ENTER) are
@@ -84,12 +105,29 @@ func (m InteractiveSearchResultsModel) Update(msg tea.Msg) (InteractiveSearchRes
 	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(msg, m.Keys.Down):
-			if m.cursor < len(m.items)-1 {
+			if m.cursor < m.visibleCount()-1 {
 				m.cursor++
+			} else {
+				nextStart := m.windowStart + searchPageSize
+				if nextStart < len(m.allItems) {
+					m.windowStart = nextStart
+					m.cursor = 0
+				} else if !m.loading && m.savedAction.Command != "" && len(m.allItems) < searchResultsHardCap {
+					m.loading = true
+					action := m.savedAction
+					offset := len(m.allItems)
+					return m, func() tea.Msg { return sp.SearchMoreMsg{Action: action, Offset: offset} }
+				}
 			}
 		case key.Matches(msg, m.Keys.Up):
 			if m.cursor > 0 {
 				m.cursor--
+			} else if m.windowStart > 0 {
+				m.windowStart -= searchPageSize
+				if m.windowStart < 0 {
+					m.windowStart = 0
+				}
+				m.cursor = m.visibleCount() - 1
 			}
 		}
 	}
@@ -97,14 +135,16 @@ func (m InteractiveSearchResultsModel) Update(msg tea.Msg) (InteractiveSearchRes
 }
 
 func (m InteractiveSearchResultsModel) View() string {
-	if len(m.items) == 0 {
+	if len(m.allItems) == 0 {
 		return "No results."
 	}
 
+	first := m.windowStart + 1
+	last := m.windowStart + m.visibleCount()
 	var b strings.Builder
-	b.WriteString(searchTitleStyle.Render(fmt.Sprintf("Results (%d)", len(m.items))))
+	b.WriteString(searchTitleStyle.Render(fmt.Sprintf("Results (%d-%d)", first, last)))
 	b.WriteString("\n")
-	for i, item := range m.items {
+	for i, item := range m.allItems[m.windowStart : m.windowStart+m.visibleCount()] {
 		label := strings.Join(item.ShortViewItems, " · ")
 		if i == m.cursor {
 			b.WriteString(searchCursorStyle.Render("> "))
@@ -113,6 +153,9 @@ func (m InteractiveSearchResultsModel) View() string {
 			b.WriteString(searchItemStyle.Render(label))
 		}
 		b.WriteString("\n")
+	}
+	if m.loading {
+		b.WriteString("  fetching more...\n")
 	}
 	return b.String()
 }

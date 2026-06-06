@@ -127,7 +127,7 @@ func (c *SpotifyClient) Route(msg SpotifyActionMsg) (string, error) {
 	}
 }
 
-func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error) {
+func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg, initialOffset int) ([]SpotifyItem, error) {
 	if msg.Arg == "" {
 		return nil, fmt.Errorf("SEARCH requires an argument")
 	}
@@ -156,10 +156,11 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 	const limit = 7
 	const retries = 3
 	var results []SpotifyItem
-	offset := 0
+	startPage := initialOffset / limit
+	offset := startPage
 	found := 0
 
-	for found < limit && offset < retries {
+	for found < limit && offset < startPage+retries {
 		tmpResult, err := c.search(term, searchType, offset*limit)
 		if err != nil {
 			return nil, err
@@ -280,7 +281,7 @@ func (c *SpotifyClient) HandleSearch(msg SpotifyActionMsg) ([]SpotifyItem, error
 		}
 
 		found += iterFound
-		logger.Printf("search [%s %q] attempt %d: found %d this iteration, %d total", subcommand, term, offset, iterFound, found)
+		logger.Printf("search [%s %q] page %d attempt %d: found %d this iteration, %d total", subcommand, term, startPage, offset-startPage+1, iterFound, found)
 		offset++
 	}
 
