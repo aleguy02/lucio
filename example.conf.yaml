@@ -2,6 +2,8 @@ spotify_client_id: # required
 spotify_client_secret: # required
 spotify_redirect_uri: # required
 
+tavily_api_key: # optional; required for agent web search tool
+
 model: gemma4:e4b # required
 model_url: null
 thinking: true

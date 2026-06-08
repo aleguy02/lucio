@@ -30,6 +30,9 @@ import (
 
 var logger *log.Logger
 var confPath = "conf.yaml"
+var tavilyConf struct {
+	APIKey string `yaml:"tavily_api_key"`
+}
 
 func init() {
 	f, err := os.OpenFile(filepath.Join("logs", "agent.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -37,6 +40,14 @@ func init() {
 		log.Fatalf("failed to open log file: %v", err)
 	}
 	logger = log.New(f, "", log.LstdFlags)
+
+	data, err := os.ReadFile(confPath)
+	if err != nil {
+		logger.Printf("error reading file: %v", err)
+	}
+	if err := yaml.Unmarshal(data, &tavilyConf); err != nil {
+		logger.Printf("could not unmarshal yaml: %v", err)
+	}
 }
 
 type agentConf struct {
@@ -387,6 +398,12 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return nil, nil, fmt.Errorf("model must be set")
 	}
 
+	if tavilyConf.APIKey == "" {
+		logger.Printf("webSearch tool will not be injected: Tavily API key was not set")
+	} else {
+		logger.Printf("webSearch tool will be injected: Tavily API key was set")
+	}
+
 	llm, err := NewOllamaModel(c)
 	if err != nil {
 		logger.Printf("failed to create ollama model: %s", err)
@@ -517,6 +534,33 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
+	tools := []tool.Tool{
+		skipfTool,
+		skipbTool,
+		getUserPlaylistsTool,
+		playItemTool,
+		searchSpotifyTool,
+		addToQueueTool,
+		getNowPlayingTool,
+		getPlaylistTracksTool,
+		getAlbumsTool,
+		getAlbumTracksTool,
+	}
+
+	if tavilyConf.APIKey != "" {
+		tavilyWebSearchTool, err := functiontool.New(
+			functiontool.Config{
+				Name: "webSearch",
+				Description: "Use natural language to query the web",
+			}, TavilyWebSearchTool)
+		if err != nil {
+			logger.Printf("failed to create function tool: %s", err)
+			return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+		}
+
+		tools = append(tools, tavilyWebSearchTool)
+	}
+
 	// TODO(improvement, not planned):
 	// 	- add compaction depending on yaml file. Why not planned: This is unecessary because the user should just be able to /clear
 	ag, err := llmagent.New(llmagent.Config{
@@ -524,18 +568,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
 		Instruction:         lucioInstruction,
-		Tools: []tool.Tool{
-			skipfTool,
-			skipbTool,
-			getUserPlaylistsTool,
-			playItemTool,
-			searchSpotifyTool,
-			addToQueueTool,
-			getNowPlayingTool,
-			getPlaylistTracksTool,
-			getAlbumsTool,
-			getAlbumTracksTool,
-		},
+		Tools: tools,
 	})
 	if err != nil {
 		logger.Printf("failed to create llm agent: %s", err)
