@@ -30,8 +30,9 @@ import (
 
 var logger *log.Logger
 var confPath = "conf.yaml"
-var tavilyConf struct {
-	APIKey string `yaml:"tavily_api_key"`
+var appConf struct {
+	TavilyAPIKey string `yaml:"tavily_api_key"`
+	VerboseLogging bool `yaml:"verbose_logging"`
 }
 
 func init() {
@@ -45,37 +46,41 @@ func init() {
 	if err != nil {
 		logger.Printf("error reading file: %v", err)
 	}
-	if err := yaml.Unmarshal(data, &tavilyConf); err != nil {
+	if err := yaml.Unmarshal(data, &appConf); err != nil {
 		logger.Printf("could not unmarshal yaml: %v", err)
 	}
 }
 
 type agentConf struct {
-	ModelName      string   `yaml:"model"`
-	ModelURL       string   `yaml:"model_url"`
-	VerboseLogging bool     `yaml:"verbose_logging"`
-	Thinking       bool     `yaml:"thinking"`
-	Temperature    *float32 `yaml:"temperature"`
+	Model struct {
+		Provider string `yaml:"provider"`
+		APIKey   string `yaml:"api_key"`
+		Name     string `yaml:"name"`
+		URL      string `yaml:"url"`
+		Settings struct {
+			Thinking    bool     `yaml:"thinking"`
+			Temperature *float32 `yaml:"temperature"`
+		} `yaml:"settings"`
+	} `yaml:"model"`
 }
 
 type myLLM struct {
 	client          *ollama.Client
 	modelStr        string
 	name            string
-	verboseLogging  bool
 	thinkingEnabled bool
 	temperature     *float32
 }
 
 func NewOllamaModel(c agentConf) (*myLLM, error) {
-	u, err := url.Parse(c.ModelURL)
+	u, err := url.Parse(c.Model.URL)
 	if err != nil {
 		logger.Printf("failed to parse url: %s", err)
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
 
 	var client *ollama.Client
-	if c.ModelURL != "" {
+	if c.Model.URL != "" {
 		c := &http.Client{}
 		client = ollama.NewClient(u, c) // TODO: what happens if the url string parses correctly but is wrong?
 	} else {
@@ -88,11 +93,10 @@ func NewOllamaModel(c agentConf) (*myLLM, error) {
 
 	return &myLLM{
 		client:          client,
-		modelStr:        c.ModelName,
-		name:            c.ModelName,
-		verboseLogging:  c.VerboseLogging,
-		thinkingEnabled: c.Thinking,
-		temperature:     c.Temperature,
+		modelStr:        c.Model.Name,
+		name:            c.Model.Name,
+		thinkingEnabled: c.Model.Settings.Thinking,
+		temperature:     c.Model.Settings.Temperature,
 	}, nil
 }
 
@@ -283,7 +287,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 		var pendingToolCalls []ollama.ToolCall
 
 		respFunc := func(resp ollama.ChatResponse) error {
-			if m.verboseLogging {
+			if appConf.VerboseLogging {
 				logger.Printf("stream token: done=%v content=%q thinking=%q tool_calls=%d",
 					resp.Done, resp.Message.Content, resp.Message.Thinking, len(resp.Message.ToolCalls))
 			}
@@ -393,12 +397,12 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return nil, nil, fmt.Errorf("could not unmarshal yaml: %w", err)
 	}
 
-	if c.ModelName == "" {
+	if c.Model.Name == "" {
 		logger.Printf("model must be set")
 		return nil, nil, fmt.Errorf("model must be set")
 	}
 
-	if tavilyConf.APIKey == "" {
+	if appConf.TavilyAPIKey == "" {
 		logger.Printf("webSearch tool will not be injected: Tavily API key was not set")
 	} else {
 		logger.Printf("webSearch tool will be injected: Tavily API key was set")
@@ -547,7 +551,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		getAlbumTracksTool,
 	}
 
-	if tavilyConf.APIKey != "" {
+	if appConf.TavilyAPIKey != "" {
 		tavilyWebSearchTool, err := functiontool.New(
 			functiontool.Config{
 				Name: "webSearch",

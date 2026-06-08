@@ -32,7 +32,7 @@ func TavilyWebSearchTool(ctx tool.Context, args TavilyWebSearchToolArgs) (Tavily
 		return TavilyWebSearchToolResult{Success: false}, err
 	}
 
-	authStr := fmt.Sprintf("Bearer %s", tavilyConf.APIKey)
+	authStr := fmt.Sprintf("Bearer %s", appConf.TavilyAPIKey)
 	req.Header.Add("Authorization", authStr)
 	req.Header.Add("Content-Type", "application/json")
 

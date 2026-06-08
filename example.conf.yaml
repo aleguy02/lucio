@@ -4,9 +4,16 @@ spotify_redirect_uri: # required
 
 tavily_api_key: # optional; required for agent web search tool
 
-model: gemma4:e4b # required
-model_url: null
-thinking: true
-temperature: null # optional; omit to use the model's default
-# Set verbose_logging to true if you want to log every token streamed from the LLM. Recommended only for debugging
+model:
+  provider: # required; options are: gemini | ollama
+  api_key: # required only if using gemini provider
+  name: gemma4:e4b
+  url: # optional; set if using a remote ollama model
+
+  # settings apply to ollama models only
+  settings:
+    thinking: true # optional; omit to use the model's default
+    temperature: # optional; omit to use the model's default
+
+# optional; Set verbose_logging to true if you want to log every token streamed from the LLM. Recommended only for debugging. Only supported with Ollama
 verbose_logging: false
