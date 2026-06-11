@@ -251,6 +251,8 @@ type GetNowPlayingToolResult struct {
 
 // GetNowPlayingTool returns the currently playing track and playback state.
 func (c *SpotifyClient) GetNowPlayingTool(ctx tool.Context, _ struct{}) (GetNowPlayingToolResult, error) {
+	logger.Print("GetNowPlayingTool: was called")
+
 	result, err := c.client.PlayerState(context.Background())
 	if err != nil {
 		logger.Printf("GetNowPlayingTool: PlayerState error (status=%d): %v", spotifyErrStatus(err), err)

@@ -1,7 +1,7 @@
 .venv
 *.task
 .env
-conf.yaml
+conf*.yaml
 .cache
 *.log
 bin/

@@ -413,6 +413,14 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		logger.Printf("failed to create ollama model: %s", err)
 		return nil, nil, fmt.Errorf("failed to create ollama model: %w", err)
 	}
+	// ctx := context.Background()
+	// llm, err := gemini.NewModel(ctx, "gemini-2.5-flash", &genai.ClientConfig{
+    //     APIKey: "AQ.Ab8RN6KRiks08cLWeqC7kdiewrzWYqf-2GYZKipWQCVSYQWkfA",
+    // })
+    // if err != nil {
+    //     log.Fatalf("Failed to create model: %v", err)
+    // }
+	
 
 	// TODO(bug): sometimes newlines render extra tall sometimes not. It makes the agent response look messed up
 	// this is a temporary fix to clamp extra newlines to mitigate the issue
