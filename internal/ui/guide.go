@@ -138,8 +138,6 @@ func (m guide) sectionContent() string {
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 
-
-
 	case helpAgent:
 		rows := [][]string{
 			{"spotifySkipTrack", "Skip the current song/track playing in Spotify"},

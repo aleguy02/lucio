@@ -20,8 +20,8 @@ type TavilyWebSearchToolArgs struct {
 }
 
 type TavilyWebSearchToolResult struct {
-	Result string `json:"result"`
-	Success    bool   `json:"success"`
+	Result  string `json:"result"`
+	Success bool   `json:"success"`
 }
 
 func TavilyWebSearchTool(ctx tool.Context, args TavilyWebSearchToolArgs) (TavilyWebSearchToolResult, error) {

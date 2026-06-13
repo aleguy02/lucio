@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	sp "aleguy02/spotify-tui/internal/spotify"
@@ -81,7 +82,22 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 		for _, part := range event.Content.Parts {
 			switch {
 			case part.FunctionCall != nil:
-				streamCh <- ui.AgentChunkMsg{ToolName: part.FunctionCall.Name}
+				keys := make([]string, 0, len(part.FunctionCall.Args))
+				for k := range part.FunctionCall.Args {
+					keys = append(keys, k)
+				}
+
+				var argParts []string
+				for _, k := range keys {
+					argParts = append(argParts, fmt.Sprintf("%s: %v", k, part.FunctionCall.Args[k]))
+				}
+				args := strings.Join(argParts, ", ")
+
+				toolStr := part.FunctionCall.Name
+				if args != "" {
+					toolStr = fmt.Sprintf("%s(%s)", part.FunctionCall.Name, args)
+				}
+				streamCh <- ui.AgentChunkMsg{ToolName: toolStr}
 			case part.Text != "" && event.Partial:
 				// Only forward partial (streaming) tokens; the final non-partial event
 				// contains the same text fully accumulated — forwarding it would duplicate.
@@ -218,8 +234,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		stateMsg := sp.SpotifyPlaybackStateMsg{State: state}
 		m.views[0], _ = m.views[0].Update(stateMsg)
 		return m, doTick()
-
-
 
 	case tea.KeyPressMsg:
 		switch msg.String() {

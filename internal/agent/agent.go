@@ -31,8 +31,8 @@ import (
 var logger *log.Logger
 var confPath = "conf.yaml"
 var appConf struct {
-	TavilyAPIKey string `yaml:"tavily_api_key"`
-	VerboseLogging bool `yaml:"verbose_logging"`
+	TavilyAPIKey   string `yaml:"tavily_api_key"`
+	VerboseLogging bool   `yaml:"verbose_logging"`
 }
 
 func init() {
@@ -415,12 +415,11 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 	}
 	// ctx := context.Background()
 	// llm, err := gemini.NewModel(ctx, "gemini-2.5-flash", &genai.ClientConfig{
-    //     APIKey: "AQ.Ab8RN6KRiks08cLWeqC7kdiewrzWYqf-2GYZKipWQCVSYQWkfA",
-    // })
-    // if err != nil {
-    //     log.Fatalf("Failed to create model: %v", err)
-    // }
-	
+	//     APIKey: "AQ.Ab8RN6KRiks08cLWeqC7kdiewrzWYqf-2GYZKipWQCVSYQWkfA",
+	// })
+	// if err != nil {
+	//     log.Fatalf("Failed to create model: %v", err)
+	// }
 
 	// TODO(bug): sometimes newlines render extra tall sometimes not. It makes the agent response look messed up
 	// this is a temporary fix to clamp extra newlines to mitigate the issue
@@ -562,7 +561,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 	if appConf.TavilyAPIKey != "" {
 		tavilyWebSearchTool, err := functiontool.New(
 			functiontool.Config{
-				Name: "webSearch",
+				Name:        "webSearch",
 				Description: "Use natural language to query the web",
 			}, TavilyWebSearchTool)
 		if err != nil {
@@ -580,7 +579,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		Model:               llm,
 		AfterModelCallbacks: []llmagent.AfterModelCallback{collapseNewlines},
 		Instruction:         lucioInstruction,
-		Tools: tools,
+		Tools:               tools,
 	})
 	if err != nil {
 		logger.Printf("failed to create llm agent: %s", err)

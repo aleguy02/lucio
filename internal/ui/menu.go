@@ -179,8 +179,6 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 	m.alert = ""
 	// 	return m, nil
 
-
-
 	case sp.DevicesResultMsg:
 		m.successAlert = string(msg)
 		m.alert = ""

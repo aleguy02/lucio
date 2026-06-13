@@ -7,8 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/common-nighthawk/go-figure"
-
-
 )
 
 // Modality represents a feature or microservice that can be toggled.
@@ -128,7 +126,6 @@ func (m ModalitiesModel) Update(msg tea.Msg) (ModalitiesModel, tea.Cmd) {
 			}
 		case key.Matches(msg, m.Keys.Toggle):
 			m.Modalities[m.Cursor].Enabled = !m.Modalities[m.Cursor].Enabled
-
 
 		}
 	}
