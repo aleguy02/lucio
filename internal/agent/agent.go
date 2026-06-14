@@ -545,6 +545,27 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
+	addItemsToPlaylistTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifyAddItemsToPlaylist",
+			Description: "Add one or more tracks/episodes (by URI) to a playlist the user owns or collaborates on. Non-owned playlists surface FORBIDDEN errors.",
+		}, client.AddItemsToPlaylistTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
+	removeItemsFromPlaylistTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifyRemoveItemsFromPlaylist",
+			Description: "Remove one or more tracks/episodes (by URI) from a playlist the user owns or collaborates on. Removes all occurrences. Non-owned playlists surface FORBIDDEN errors.",
+			RequireConfirmation: true,
+		}, client.RemoveItemsFromPlaylistTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
 	tools := []tool.Tool{
 		skipfTool,
 		skipbTool,
@@ -556,6 +577,8 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		getPlaylistTracksTool,
 		getAlbumsTool,
 		getAlbumTracksTool,
+		addItemsToPlaylistTool,
+		removeItemsFromPlaylistTool,
 	}
 
 	if appConf.TavilyAPIKey != "" {

@@ -1,6 +1,7 @@
 package spotify
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -227,6 +228,97 @@ func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID strin
 		})
 	}
 	return tracks, int(result.Total), nil
+}
+
+// addPlaylistItems POSTs uris to the playlist's /tracks endpoint (appended to the end)
+// and returns the new snapshot id.
+func (c *SpotifyClient) addPlaylistItems(ctx context.Context, playlistID string, uris []string) (string, error) {
+	spotifyURL := fmt.Sprintf("%splaylists/%s/items", baseURL, playlistID)
+
+	body, err := json.Marshal(struct {
+		URIs []string `json:"uris"`
+	}{URIs: uris})
+	if err != nil {
+		logger.Printf("addPlaylistItems: marshal error: %v", err)
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", spotifyURL, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		logger.Printf("addPlaylistItems: status not OK (playlist=%q status=%d)", playlistID, resp.StatusCode)
+		return "", fmt.Errorf("spotify: status not OK (status=%d)", resp.StatusCode)
+	}
+
+	var result struct {
+		SnapshotID string `json:"snapshot_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.Printf("addPlaylistItems: decode error: %v", err)
+		return "", err
+	}
+	return result.SnapshotID, nil
+}
+
+// removePlaylistItems DELETEs uris from the playlist's /tracks endpoint and returns the
+// new snapshot id. All occurrences of each uri are removed.
+func (c *SpotifyClient) removePlaylistItems(ctx context.Context, playlistID string, uris []string) (string, error) {
+	spotifyURL := fmt.Sprintf("%splaylists/%s/items", baseURL, playlistID)
+
+	var body struct {
+		Items []struct {
+			URI string `json:"uri"`
+		} `json:"items"`
+	}
+	for _, uri := range uris {
+		body.Items = append(body.Items, struct {
+			URI string `json:"uri"`
+		}{URI: uri})
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		logger.Printf("removePlaylistItems: marshal error: %v", err)
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", spotifyURL, bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		logger.Printf("removePlaylistItems: status not OK (playlist=%q status=%d)", playlistID, resp.StatusCode)
+		return "", fmt.Errorf("spotify: status not OK (status=%d)", resp.StatusCode)
+	}
+
+	var result struct {
+		SnapshotID string `json:"snapshot_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.Printf("removePlaylistItems: decode error: %v", err)
+		return "", err
+	}
+	return result.SnapshotID, nil
 }
 
 /* END

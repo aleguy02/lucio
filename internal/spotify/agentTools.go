@@ -436,12 +436,6 @@ func (c *SpotifyClient) CreatePlaylist(ctx tool.Context, _ struct{}) (CreatePlay
 	return CreatePlaylistToolResult{}, nil
 }
 
-type AddTracksToPlaylistToolResult struct{}
-
-func (c *SpotifyClient) AddTracksToPlaylist(ctx tool.Context, _ struct{}) (AddTracksToPlaylistToolResult, error) {
-	return AddTracksToPlaylistToolResult{}, nil
-}
-
 type AddToQueueToolArgs = QueueMsg
 
 type AddToQueueToolResult struct {
@@ -597,8 +591,64 @@ func (c *SpotifyClient) UpdatePlaylist(ctx tool.Context, _ struct{}) (UpdatePlay
 	return UpdatePlaylistToolResult{}, nil
 }
 
-type RemoveTracksFromPlaylistToolResult struct{}
+type AddItemsToPlaylistToolArgs struct {
+	PlaylistID string   `json:"playlist_id" jsonschema:"The Spotify ID of the playlist to add items to"`
+	URIs       []string `json:"uris"        jsonschema:"Spotify track or episode URIs to add, e.g. spotify:track:<id>. Maximum 30"`
+}
 
-func (c *SpotifyClient) RemoveTracksFromPlaylist(ctx tool.Context, _ struct{}) (RemoveTracksFromPlaylistToolResult, error) {
-	return RemoveTracksFromPlaylistToolResult{}, nil
+type AddItemsToPlaylistToolResult struct {
+	SnapshotID string `json:"snapshot_id"`
+	Success    bool   `json:"success"`
+}
+
+// AddItemsToPlaylistTool appends one or more track/episode URIs to a playlist and
+// returns the resulting snapshot id. Max 30 URIs.
+func (c *SpotifyClient) AddItemsToPlaylistTool(ctx tool.Context, args AddItemsToPlaylistToolArgs) (AddItemsToPlaylistToolResult, error) {
+	if len(args.URIs) == 0 {
+		err := fmt.Errorf("uris is required")
+		logger.Printf("AddItemsToPlaylistTool: %v", err)
+		return AddItemsToPlaylistToolResult{Success: false}, err
+	}
+	if len(args.URIs) > 30 {
+		args.URIs = args.URIs[:30]
+	}
+	logger.Printf("AddItemsToPlaylistTool: playlist=%q uris=%v", args.PlaylistID, args.URIs)
+
+	snap, err := c.addPlaylistItems(context.Background(), args.PlaylistID, args.URIs)
+	if err != nil {
+		logger.Printf("AddItemsToPlaylistTool: API error (playlist=%q status=%d): %v", args.PlaylistID, spotifyErrStatus(err), err)
+		return AddItemsToPlaylistToolResult{Success: false}, err
+	}
+	return AddItemsToPlaylistToolResult{SnapshotID: snap, Success: true}, nil
+}
+
+type RemoveItemsFromPlaylistToolArgs struct {
+	PlaylistID string   `json:"playlist_id" jsonschema:"The Spotify ID of the playlist to remove items from"`
+	URIs       []string `json:"uris"        jsonschema:"Spotify track or episode URIs to remove, e.g. spotify:track:<id>. All occurrences are removed. Maximum 30"`
+}
+
+type RemoveItemsFromPlaylistToolResult struct {
+	SnapshotID string `json:"snapshot_id"`
+	Success    bool   `json:"success"`
+}
+
+// RemoveItemsFromPlaylistTool removes one or more track/episode URIs from a playlist and
+// returns the resulting snapshot id. All occurrences are removed. Max 30 URIs.
+func (c *SpotifyClient) RemoveItemsFromPlaylistTool(ctx tool.Context, args RemoveItemsFromPlaylistToolArgs) (RemoveItemsFromPlaylistToolResult, error) {
+	if len(args.URIs) == 0 {
+		err := fmt.Errorf("uris is required")
+		logger.Printf("RemoveItemsFromPlaylistTool: %v", err)
+		return RemoveItemsFromPlaylistToolResult{Success: false}, err
+	}
+	if len(args.URIs) > 30 {
+		args.URIs = args.URIs[:30]
+	}
+	logger.Printf("RemoveItemsFromPlaylistTool: playlist=%q uris=%v", args.PlaylistID, args.URIs)
+
+	snap, err := c.removePlaylistItems(context.Background(), args.PlaylistID, args.URIs)
+	if err != nil {
+		logger.Printf("RemoveItemsFromPlaylistTool: API error (playlist=%q status=%d): %v", args.PlaylistID, spotifyErrStatus(err), err)
+		return RemoveItemsFromPlaylistToolResult{Success: false}, err
+	}
+	return RemoveItemsFromPlaylistToolResult{SnapshotID: snap, Success: true}, nil
 }
