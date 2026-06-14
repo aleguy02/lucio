@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -18,11 +21,16 @@ const (
 	SenderAgent
 )
 
+type ToolCall struct {
+	Name string
+	Args map[string]any
+}
+
 // Message is the base chat unit.
 type Message struct {
 	Sender    MessageSender
 	Content   string
-	ToolCalls []string
+	ToolCalls []ToolCall
 }
 
 const maxChatMessages = 15
@@ -77,7 +85,7 @@ var (
 type agentChatModel struct {
 	messages          []Message
 	streamAccumulator string
-	streamToolCalls   []string
+	streamToolCalls   []ToolCall
 	isResponding      bool
 	viewport          viewport.Model
 	input             textinput.Model
@@ -139,8 +147,21 @@ func renderMessage(msg Message) string {
 	case SenderAgent:
 		label := agentMsgLabelStyle.Render("lucio")
 		out := label
-		for _, name := range msg.ToolCalls {
-			out += "\n" + toolCallStyle.Render("+ "+name)
+		for _, tc := range msg.ToolCalls {
+			display := tc.Name
+			if len(tc.Args) > 0 {
+				keys := make([]string, 0, len(tc.Args))
+				for k := range tc.Args {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				parts := make([]string, 0, len(keys))
+				for _, k := range keys {
+					parts = append(parts, fmt.Sprintf("%s: %v", k, tc.Args[k]))
+				}
+				display = tc.Name + "(" + strings.Join(parts, ", ") + ")"
+			}
+			out += "\n" + toolCallStyle.Render("+ " + display)
 		}
 		out += "\n" + agentMsgTextStyle.Render(msg.Content)
 		return out
@@ -171,7 +192,26 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 			c.isResponding = false
 		} else {
 			if msg.ToolName != "" {
-				c.streamToolCalls = append(c.streamToolCalls, msg.ToolName)
+				if msg.ToolName == "adk_request_confirmation" {
+
+					var foo map[string]any
+					if b, err := json.Marshal(msg); err == nil {
+						_ = json.Unmarshal(b, &foo)
+					}
+
+					TerminalLog.Printf("foo is: %v", foo)
+					var funcID string
+					if toolArgs, ok := foo["ToolArgs"].(map[string]any); ok {
+						if orig, ok := toolArgs["originalFunctionCall"].(map[string]any); ok {
+							if id, ok := orig["id"].(string); ok {
+								funcID = id
+							}
+						}
+					}
+					TerminalLog.Printf("funcID is: %s", funcID)
+					return c, func() tea.Msg { return ToolConfirmationMsg{ID: funcID, Confirmed: true} }
+				}
+				c.streamToolCalls = append(c.streamToolCalls, ToolCall{Name: msg.ToolName, Args: msg.ToolArgs})
 			}
 			if !msg.Done {
 				c.streamAccumulator += msg.Text

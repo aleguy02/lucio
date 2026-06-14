@@ -1,5 +1,0 @@
-opencv-python
-mediapipe
-pika
-spotipy
-python-dotenv

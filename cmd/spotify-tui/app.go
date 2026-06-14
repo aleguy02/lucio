@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	sp "aleguy02/spotify-tui/internal/spotify"
@@ -64,14 +63,35 @@ func waitForAgentChunkCmd(ch chan tea.Msg) tea.Cmd {
 	}
 }
 
-func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, streamCh chan tea.Msg) {
+
+// TODO(current): I think we can add a parameter here to handle passing in ToolConfirmations
+func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, streamCh chan tea.Msg, funcID string, confirmed bool) {
 	defer close(streamCh)
 
-	userMsg := &genai.Content{
-		Parts: []*genai.Part{{Text: text}},
-		Role:  "user",
+	var msg *genai.Content
+	if funcID != "" {
+		msg = &genai.Content{
+			Role: "user",
+			Parts: []*genai.Part{
+				{
+					FunctionResponse: &genai.FunctionResponse{
+						ID:   funcID, 
+						Name: "adk_request_confirmation", 
+						Response: map[string]any{
+							"confirmed": confirmed,
+						},
+					},
+				},
+			},
+		}
+	} else {
+		msg = &genai.Content{
+			Parts: []*genai.Part{{Text: text}},
+			Role:  "user",
+		}
 	}
-	for event, err := range r.Run(ctx, agentUserID, agentSessionID, userMsg, adkagent.RunConfig{StreamingMode: adkagent.StreamingModeSSE}) {
+
+	for event, err := range r.Run(ctx, agentUserID, agentSessionID, msg, adkagent.RunConfig{StreamingMode: adkagent.StreamingModeSSE}) {
 		if err != nil {
 			streamCh <- ui.AgentChunkMsg{Err: err, Done: true}
 			return
@@ -82,22 +102,7 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 		for _, part := range event.Content.Parts {
 			switch {
 			case part.FunctionCall != nil:
-				keys := make([]string, 0, len(part.FunctionCall.Args))
-				for k := range part.FunctionCall.Args {
-					keys = append(keys, k)
-				}
-
-				var argParts []string
-				for _, k := range keys {
-					argParts = append(argParts, fmt.Sprintf("%s: %v", k, part.FunctionCall.Args[k]))
-				}
-				args := strings.Join(argParts, ", ")
-
-				toolStr := part.FunctionCall.Name
-				if args != "" {
-					toolStr = fmt.Sprintf("%s(%s)", part.FunctionCall.Name, args)
-				}
-				streamCh <- ui.AgentChunkMsg{ToolName: toolStr}
+				streamCh <- ui.AgentChunkMsg{ToolName: part.FunctionCall.Name, ToolArgs: part.FunctionCall.Args}
 			case part.Text != "" && event.Partial:
 				// Only forward partial (streaming) tokens; the final non-partial event
 				// contains the same text fully accumulated — forwarding it would duplicate.
@@ -192,6 +197,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, func() tea.Msg { return sp.QueueSuccessMsg(label) }
 
+	case ui.ToolConfirmationMsg:
+		if m.agentRunner != nil {
+			ch := make(chan tea.Msg)
+			m.agentChan = ch
+			go runAgentStream(m.agentRunner, context.Background(), "", ch, msg.ID, msg.Confirmed)
+			return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
+		}
+		return m, cmd
+
 	case ui.AgentQueryMsg:
 		if msg.Text == "/clear" {
 			ch := make(chan tea.Msg, 2)
@@ -213,7 +227,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.agentRunner != nil {
 			ch := make(chan tea.Msg)
 			m.agentChan = ch
-			go runAgentStream(m.agentRunner, context.Background(), msg.Text, ch)
+			go runAgentStream(m.agentRunner, context.Background(), msg.Text, ch, "", false)
 			return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
 		}
 		return m, cmd

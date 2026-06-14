@@ -18,10 +18,17 @@ type AgentQueryMsg struct {
 
 // AgentChunkMsg carries one streamed token (or the final done signal) from the agent runner.
 // Done=true means the turn is complete; Err carries any transport error.
-// ToolName is non-empty when the agent invoked a tool during this turn.
+// ToolName is the bare function name (non-empty when the agent invoked a tool); ToolArgs holds its arguments.
 type AgentChunkMsg struct {
 	Text     string
 	ToolName string
+	ToolArgs map[string]any
 	Done     bool
 	Err      error
+}
+
+// ToolConfirmationMsg carries the user's confirmation status and function ID
+type ToolConfirmationMsg struct {
+	ID	string
+	Confirmed bool
 }

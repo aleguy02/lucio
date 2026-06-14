@@ -549,6 +549,7 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		functiontool.Config{
 			Name:        "spotifyAddItemsToPlaylist",
 			Description: "Add one or more tracks/episodes (by URI) to a playlist the user owns or collaborates on. Non-owned playlists surface FORBIDDEN errors.",
+			RequireConfirmation: true,
 		}, client.AddItemsToPlaylistTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)
