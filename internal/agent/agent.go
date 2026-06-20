@@ -175,12 +175,14 @@ func ADKToolToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 	return t
 }
 
+// Model-layer function to generate an iterable stream of tokens. This function handles translation between ADK and Ollama.
 func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
 		ch := make(chan callbackRes)
 		logger.Printf("generateStream: model=%s messages=%d", req.Model, len(req.Contents))
 
 		// First half of this function is a translation layer between ADK <--> Ollama
+		// ADK --> Ollama parsing happens here
 		msgs := make([]ollama.Message, 0, len(req.Contents))
 		for _, c := range req.Contents {
 			role := c.Role
@@ -200,7 +202,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 						args.Set(k, v)
 					}
 					toolCalls = append(toolCalls, ollama.ToolCall{
-						ID: p.FunctionCall.ID,
+						// ID: p.FunctionCall.ID,  // This isn't showing up
 						Function: ollama.ToolCallFunction{
 							Name:      p.FunctionCall.Name,
 							Arguments: args,
@@ -213,7 +215,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 						Role:       "tool",
 						Content:    string(content),
 						ToolName:   p.FunctionResponse.Name,
-						ToolCallID: p.FunctionResponse.ID,
+						// ToolCallID: p.FunctionResponse.ID,  // This isn't showing up
 					})
 
 				case !p.Thought:
@@ -224,7 +226,7 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 			if len(toolResponses) > 0 {
 				msgs = append(msgs, toolResponses...)
 			} else if len(toolCalls) > 0 {
-				msgs = append(msgs, ollama.Message{Role: role, Content: text, ToolCalls: toolCalls})
+				msgs = append(msgs, ollama.Message{Role: role, ToolCalls: toolCalls})
 			} else {
 				msgs = append(msgs, ollama.Message{Role: role, Content: text})
 			}

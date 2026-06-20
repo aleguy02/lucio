@@ -14,7 +14,6 @@ import (
 
 var TAVILY_SEARCH_URL string = "https://api.tavily.com/search"
 
-// TODO(current): Tavily tool
 type TavilyWebSearchToolArgs struct {
 	Query string `json:"query" jsonschema:"Natural language search query"`
 }

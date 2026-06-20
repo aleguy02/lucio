@@ -13,6 +13,7 @@ import (
 	adkagent "google.golang.org/adk/agent"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
+	"google.golang.org/adk/tool/toolconfirmation"
 	"google.golang.org/genai"
 )
 
@@ -64,7 +65,7 @@ func waitForAgentChunkCmd(ch chan tea.Msg) tea.Cmd {
 }
 
 
-// TODO(current): I think we can add a parameter here to handle passing in ToolConfirmations
+// Agent-layer function to produce an event stream
 func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, streamCh chan tea.Msg, funcID string, confirmed bool) {
 	defer close(streamCh)
 
@@ -102,7 +103,17 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 		for _, part := range event.Content.Parts {
 			switch {
 			case part.FunctionCall != nil:
-				streamCh <- ui.AgentChunkMsg{ToolName: part.FunctionCall.Name, ToolArgs: part.FunctionCall.Args}
+				if part.FunctionCall.Name == toolconfirmation.FunctionCallName {
+					orig, err := toolconfirmation.OriginalCallFrom(part.FunctionCall)
+					if err != nil {
+						log.Printf("[agent] failed to unwrap confirmation request: %v", err)
+						streamCh <- ui.AgentChunkMsg{ConfirmRequired: true, ToolName: part.FunctionCall.Name, ToolArgs: part.FunctionCall.Args, ToolID: part.FunctionCall.ID}
+						continue
+					}
+					streamCh <- ui.AgentChunkMsg{ConfirmRequired: true, ToolName: orig.Name, ToolArgs: orig.Args, ToolID: part.FunctionCall.ID}
+					continue
+				}
+				streamCh <- ui.AgentChunkMsg{ToolName: part.FunctionCall.Name, ToolArgs: part.FunctionCall.Args, ToolID: part.FunctionCall.ID}
 			case part.Text != "" && event.Partial:
 				// Only forward partial (streaming) tokens; the final non-partial event
 				// contains the same text fully accumulated — forwarding it would duplicate.

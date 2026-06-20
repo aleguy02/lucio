@@ -17,14 +17,23 @@ type AgentQueryMsg struct {
 }
 
 // AgentChunkMsg carries one streamed token (or the final done signal) from the agent runner.
-// Done=true means the turn is complete; Err carries any transport error.
-// ToolName is the bare function name (non-empty when the agent invoked a tool); ToolArgs holds its arguments.
 type AgentChunkMsg struct {
-	Text     string
+	Text string
+	// ToolName is the bare function name; non-empty when the agent invoked a tool.
 	ToolName string
+	// ToolArgs holds the invoked tool's arguments.
 	ToolArgs map[string]any
-	Done     bool
-	Err      error
+	ToolID   string
+	// ConfirmRequired=true marks an unwrapped tool-confirmation request: ToolName/ToolArgs
+	// hold the original tool's name/args and ToolID holds the adk_request_confirmation id to
+	// echo back in the FunctionResponse.
+	ConfirmRequired bool
+	// Done=true means the current r.Run stream ended; it is transport-level only and does NOT
+	// imply the agent has nothing left to do (e.g. a run can end while paused awaiting a
+	// confirmation response).
+	Done bool
+	// Err carries any transport error.
+	Err error
 }
 
 // ToolConfirmationMsg carries the user's confirmation status and function ID

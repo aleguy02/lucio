@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -83,15 +82,18 @@ var (
 )
 
 type agentChatModel struct {
-	messages          []Message
-	streamAccumulator string
-	streamToolCalls   []ToolCall
-	isResponding      bool
-	viewport          viewport.Model
-	input             textinput.Model
-	keys              agentChatKeyMap
-	width             int
-	height            int
+	messages              []Message
+	streamAccumulator     string
+	streamToolCalls       []ToolCall
+	pendingConfirmationID string
+	pendingToolName       string
+	pendingToolArgs       map[string]any
+	isResponding          bool
+	viewport              viewport.Model
+	input                 textinput.Model
+	keys                  agentChatKeyMap
+	width                 int
+	height                int
 }
 
 func newAgentChatModel() agentChatModel {
@@ -148,20 +150,7 @@ func renderMessage(msg Message) string {
 		label := agentMsgLabelStyle.Render("lucio")
 		out := label
 		for _, tc := range msg.ToolCalls {
-			display := tc.Name
-			if len(tc.Args) > 0 {
-				keys := make([]string, 0, len(tc.Args))
-				for k := range tc.Args {
-					keys = append(keys, k)
-				}
-				sort.Strings(keys)
-				parts := make([]string, 0, len(keys))
-				for _, k := range keys {
-					parts = append(parts, fmt.Sprintf("%s: %v", k, tc.Args[k]))
-				}
-				display = tc.Name + "(" + strings.Join(parts, ", ") + ")"
-			}
-			out += "\n" + toolCallStyle.Render("+ " + display)
+			out += "\n" + toolCallStyle.Render("+ "+formatToolCall(tc.Name, tc.Args))
 		}
 		out += "\n" + agentMsgTextStyle.Render(msg.Content)
 		return out
@@ -169,6 +158,39 @@ func renderMessage(msg Message) string {
 		label := userMsgLabelStyle.Render("you")
 		return label + "\n" + userMsgTextStyle.Render(msg.Content)
 	}
+}
+
+// formatToolCall renders a tool invocation as "name(key: val, ...)", or just "name" when
+// it takes no arguments. Arguments are sorted for stable output.
+func formatToolCall(name string, args map[string]any) string {
+	if len(args) == 0 {
+		return name
+	}
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s: %v", k, args[k]))
+	}
+	return name + "(" + strings.Join(parts, ", ") + ")"
+}
+
+var (
+	confirmBlurbStyle = lipgloss.NewStyle().Foreground(ColorLightYellow).Bold(true)
+	confirmHintStyle  = lipgloss.NewStyle().Foreground(ColorMidGray).Faint(true)
+)
+
+// renderConfirmationPrompt is the human-in-the-loop prompt shown in the dataFrame when the
+// agent requests permission to run a tool. width is the available content width for wrapping.
+func renderConfirmationPrompt(name string, args map[string]any, width int) string {
+	wrap := lipgloss.NewStyle().Width(max(1, width)).Align(lipgloss.Center)
+	blurb := wrap.Inherit(confirmBlurbStyle).Render("Lucio is requesting your permission to run the following tool. This tool may be destructive and irreversible.")
+	tool := wrap.Inherit(toolCallStyle).Render(formatToolCall(name, args))
+	hint := wrap.Inherit(confirmHintStyle).Render("[y] confirm  ·  [any other key] reject")
+	return lipgloss.JoinVertical(lipgloss.Center, blurb, "", tool, "", hint)
 }
 
 func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
@@ -191,26 +213,20 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 			c.streamToolCalls = nil
 			c.isResponding = false
 		} else {
-			if msg.ToolName != "" {
-				if msg.ToolName == "adk_request_confirmation" {
-
-					var foo map[string]any
-					if b, err := json.Marshal(msg); err == nil {
-						_ = json.Unmarshal(b, &foo)
-					}
-
-					TerminalLog.Printf("foo is: %v", foo)
-					var funcID string
-					if toolArgs, ok := foo["ToolArgs"].(map[string]any); ok {
-						if orig, ok := toolArgs["originalFunctionCall"].(map[string]any); ok {
-							if id, ok := orig["id"].(string); ok {
-								funcID = id
-							}
-						}
-					}
-					TerminalLog.Printf("funcID is: %s", funcID)
-					return c, func() tea.Msg { return ToolConfirmationMsg{ID: funcID, Confirmed: true} }
+			if msg.ConfirmRequired {
+				// ADK forwards the to-be-confirmed call as a normal event immediately before its
+				// confirmation wrapper, so it's the tail of streamToolCalls. Drop it (matched by
+				// name) so it isn't committed now: it's shown in the dataFrame prompt and re-added
+				// to the chat only on accept. Earlier tools from this same run are left intact.
+				if n := len(c.streamToolCalls); n > 0 && c.streamToolCalls[n-1].Name == msg.ToolName {
+					c.streamToolCalls = c.streamToolCalls[:n-1]
 				}
+				// Hold the request; the user resolves it via keypress once the stream's
+				// Done lands (the !isResponding guard in the keypress handler enforces this).
+				c.pendingConfirmationID = msg.ToolID
+				c.pendingToolName = msg.ToolName
+				c.pendingToolArgs = msg.ToolArgs
+			} else if msg.ToolName != "" {
 				c.streamToolCalls = append(c.streamToolCalls, ToolCall{Name: msg.ToolName, Args: msg.ToolArgs})
 			}
 			if !msg.Done {
@@ -241,6 +257,23 @@ func (c agentChatModel) Update(msg tea.Msg) (agentChatModel, tea.Cmd) {
 		return c, cmd
 
 	case tea.KeyPressMsg:
+		// Resolve a pending tool confirmation: y approves, any other key rejects.
+		// The !isResponding guard ensures the request's stream has finished (Done) before
+		// we fire a resume, so we never start a second r.Run mid-turn.
+		if c.pendingConfirmationID != "" && !c.isResponding {
+			id := c.pendingConfirmationID
+			confirmed := strings.EqualFold(msg.String(), "y")
+			c.pendingConfirmationID = ""
+			if confirmed {
+				c.streamToolCalls = append(c.streamToolCalls, ToolCall{Name: c.pendingToolName, Args: c.pendingToolArgs})
+			}
+			c.pendingToolName, c.pendingToolArgs = "", nil
+			c.isResponding = true // resume stream is starting
+			c.viewport.SetContent(c.renderMessages())
+			c.viewport.GotoBottom()
+			return c, func() tea.Msg { return ToolConfirmationMsg{ID: id, Confirmed: confirmed} }
+		}
+
 		switch {
 		case key.Matches(msg, c.keys.Send):
 			text := strings.TrimSpace(c.input.Value())
@@ -329,10 +362,15 @@ func (t agentTabModel) View() string {
 	// Width/Height set the outer dimensions (including border) in lipgloss v2
 	chatFrame := agentFrameStyle.Width(halfW).Height(t.height).Render(t.chat.View())
 
-	// Center the sprite inside the data frame's inner content area (border subtracts 2 each axis).
+	// Center the content inside the data frame's inner area (border subtracts 2 each axis).
+	// While a tool confirmation is pending, the frame shows the prompt instead of the sprite.
 	innerW := max(0, rightW-2)
 	innerH := max(0, t.height-2)
-	placed := lipgloss.Place(innerW, innerH, lipgloss.Center, lipgloss.Center, dataFrameSprite())
+	content := dataFrameSprite()
+	if t.chat.pendingConfirmationID != "" {
+		content = renderConfirmationPrompt(t.chat.pendingToolName, t.chat.pendingToolArgs, innerW)
+	}
+	placed := lipgloss.Place(innerW, innerH, lipgloss.Center, lipgloss.Center, content)
 	dataFrame := dataFrameStyle.Width(rightW).Height(t.height).Render(placed)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, chatFrame, dataFrame)
