@@ -18,8 +18,6 @@ import (
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
-	"google.golang.org/adk/tool"
-	"google.golang.org/adk/tool/functiontool"
 	"google.golang.org/genai"
 	"gopkg.in/yaml.v3"
 
@@ -212,9 +210,9 @@ func (m *myLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.
 				case p.FunctionResponse != nil:
 					content, _ := json.Marshal(p.FunctionResponse.Response)
 					toolResponses = append(toolResponses, ollama.Message{
-						Role:       "tool",
-						Content:    string(content),
-						ToolName:   p.FunctionResponse.Name,
+						Role:     "tool",
+						Content:  string(content),
+						ToolName: p.FunctionResponse.Name,
 						// ToolCallID: p.FunctionResponse.ID,  // This isn't showing up
 					})
 
@@ -447,155 +445,10 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 	}
 
 	// TODO(improvement): skip and previous tools could be consolidated into one with a forward/backward boolean flag
-	skipfTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifySkipTrack",
-			Description: "Skip the current song/track playing in Spotify",
-		}, client.SkipNextTool)
+	tools, err := tools(client)
 	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	skipbTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyPreviousTrack",
-			Description: "Skip to the previous song/track playing in Spotify",
-		}, client.SkipPreviousTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	getUserPlaylistsTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyGetUserPlaylists",
-			Description: "Get a list of the user's playlists on Spotify",
-		}, client.GetUserPlaylistsTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	playItemTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyPlayItem",
-			Description: "Play a track, album, artist, or playlist item on Spotify",
-		}, client.PlayItemTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	searchSpotifyTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifySearch",
-			Description: "Search for a track, album, artist, or playlist on Spotify",
-		}, client.SearchSpotifyTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	addToQueueTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyAddToQueue",
-			Description: "Add a track to the queue on Spotify. *Only* supports tracks.",
-		}, client.AddToQueueTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	getNowPlayingTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyGetNowPlaying",
-			Description: "Get the song that is currently playing on Spotify",
-		}, client.GetNowPlayingTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	getPlaylistTracksTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyGetPlaylistTracks",
-			Description: "Get a list of tracks from a playlist owned by the user or where the user is a collaborator on Spotify. Attempting to get tracks of a non-user owned/collaborated playlist will surface FORBIDDEN errors.",
-		}, client.GetPlaylistTracksTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	getAlbumsTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyGetAlbums",
-			Description: "Get the details of one or more albums on Spotify",
-		}, client.GetAlbumsTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	getAlbumTracksTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyGetAlbumTracks",
-			Description: "Get a list of tracks from an album on Spotify",
-		}, client.GetAlbumTracksTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	addItemsToPlaylistTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyAddItemsToPlaylist",
-			Description: "Add one or more tracks/episodes (by URI) to a playlist the user owns or collaborates on. Non-owned playlists surface FORBIDDEN errors.",
-			RequireConfirmation: true,
-		}, client.AddItemsToPlaylistTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	removeItemsFromPlaylistTool, err := functiontool.New(
-		functiontool.Config{
-			Name:        "spotifyRemoveItemsFromPlaylist",
-			Description: "Remove one or more tracks/episodes (by URI) from a playlist the user owns or collaborates on. Removes all occurrences. Non-owned playlists surface FORBIDDEN errors.",
-			RequireConfirmation: true,
-		}, client.RemoveItemsFromPlaylistTool)
-	if err != nil {
-		logger.Printf("failed to create function tool: %s", err)
-		return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-	}
-
-	tools := []tool.Tool{
-		skipfTool,
-		skipbTool,
-		getUserPlaylistsTool,
-		playItemTool,
-		searchSpotifyTool,
-		addToQueueTool,
-		getNowPlayingTool,
-		getPlaylistTracksTool,
-		getAlbumsTool,
-		getAlbumTracksTool,
-		addItemsToPlaylistTool,
-		removeItemsFromPlaylistTool,
-	}
-
-	if appConf.TavilyAPIKey != "" {
-		tavilyWebSearchTool, err := functiontool.New(
-			functiontool.Config{
-				Name:        "webSearch",
-				Description: "Use natural language to query the web",
-			}, TavilyWebSearchTool)
-		if err != nil {
-			logger.Printf("failed to create function tool: %s", err)
-			return nil, nil, fmt.Errorf("failed to create function tool: %w", err)
-		}
-
-		tools = append(tools, tavilyWebSearchTool)
+		logger.Printf("failed to create tools: %s", err)
+		return nil, nil, err
 	}
 
 	// TODO(improvement, not planned):

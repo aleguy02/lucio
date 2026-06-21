@@ -64,7 +64,6 @@ func waitForAgentChunkCmd(ch chan tea.Msg) tea.Cmd {
 	}
 }
 
-
 // Agent-layer function to produce an event stream
 func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, streamCh chan tea.Msg, funcID string, confirmed bool) {
 	defer close(streamCh)
@@ -76,8 +75,8 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 			Parts: []*genai.Part{
 				{
 					FunctionResponse: &genai.FunctionResponse{
-						ID:   funcID, 
-						Name: "adk_request_confirmation", 
+						ID:   funcID,
+						Name: "adk_request_confirmation",
 						Response: map[string]any{
 							"confirmed": confirmed,
 						},

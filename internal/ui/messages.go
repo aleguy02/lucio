@@ -38,6 +38,6 @@ type AgentChunkMsg struct {
 
 // ToolConfirmationMsg carries the user's confirmation status and function ID
 type ToolConfirmationMsg struct {
-	ID	string
+	ID        string
 	Confirmed bool
 }

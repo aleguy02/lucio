@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,6 +13,15 @@ import (
 
 	zmb "github.com/zmb3/spotify/v2"
 )
+
+// spotifyErrStatus extracts the HTTP status code from a zmb.Error, returning 0 if unavailable.
+func spotifyErrStatus(err error) int {
+	var sErr zmb.Error
+	if errors.As(err, &sErr) {
+		return sErr.Status
+	}
+	return 0
+}
 
 func parseSeconds(arg string) (int, error) {
 	if strings.TrimSpace(arg) == "" {
@@ -319,6 +329,34 @@ func (c *SpotifyClient) removePlaylistItems(ctx context.Context, playlistID stri
 		return "", err
 	}
 	return result.SnapshotID, nil
+}
+
+// removePlaylistsFromLibrary DELETEs the given playlist URIs from the user's library
+// via the /me/library endpoint. The uris are passed as a comma-separated query parameter.
+func (c *SpotifyClient) removePlaylistsFromLibrary(ctx context.Context, uris []string) error {
+	spotifyURL := fmt.Sprintf("%sme/library", baseURL)
+
+	params := url.Values{}
+	params.Set("uris", strings.Join(uris, ","))
+	spotifyURL += "?" + params.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", spotifyURL, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		logger.Printf("removePlaylistsFromLibrary: status not OK (status=%d)", resp.StatusCode)
+		return fmt.Errorf("spotify: status not OK (status=%d)", resp.StatusCode)
+	}
+	return nil
 }
 
 /* END

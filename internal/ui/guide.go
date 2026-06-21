@@ -150,6 +150,10 @@ func (m guide) sectionContent() string {
 			{"spotifyGetPlaylistTracks", "Get a list of tracks from a playlist owned by the user or where the user is a collaborator on Spotify"},
 			{"spotifyGetAlbums", "Get the details of one or more albums on Spotify"},
 			{"spotifyGetAlbumTracks", "Get a list of tracks from an album on Spotify"},
+			{"spotifyAddTracksToPlaylist", "Add one or more tracks to a playlist"},
+			{"spotifyRemoveTracksFromPlaylist", "Remove one or more tracks from a playlist"},
+			{"spotifyRemovePlaylistsFromLibrary", "Removes one or more playlists from the user's library"},
+			{"webSearch", "Use natural language to query the web. Only available if you set a Tavily API key."},
 			{"/clear", "Start a new session with empty context. Recommended if the agent begins hallucinating."},
 			// TODO: add all available tools here and suggest that the user reference them by name if they are struggling
 		}
