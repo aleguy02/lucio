@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"sort"
 	"strings"
 
@@ -79,6 +80,11 @@ var (
 	agentMsgLabelStyle = lipgloss.NewStyle().Foreground(ColorSpotifyGreen).Bold(true)
 	agentMsgTextStyle  = lipgloss.NewStyle().Foreground(ColorWhite)
 	toolCallStyle      = lipgloss.NewStyle().Foreground(ColorLightYellow)
+	flameOrangeStyle   = lipgloss.NewStyle().Foreground(ColorFlameOrange)
+	flameYellowStyle   = lipgloss.NewStyle().Foreground(ColorFlameYellow)
+	flameRedStyle      = lipgloss.NewStyle().Foreground(ColorFlameRed)
+	flameWhiteStyle    = lipgloss.NewStyle().Foreground(ColorFlameWhite)
+	flameEyesStyle     = lipgloss.NewStyle().Foreground(lipgloss.Black)
 )
 
 type agentChatModel struct {
@@ -376,12 +382,62 @@ func (t agentTabModel) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, chatFrame, dataFrame)
 }
 
+// dataFrameSprite renders one frame of a self-contained flame "simulation". There is no
+// external tick, so a frame only advances when the view re-renders; motion is therefore
+// coarse and frames are independent (no temporal coherence) — an accepted tradeoff.
+//
+// The model is a static heat field: a teardrop that is hottest at the base and cools toward
+// a narrow, flickering tip. Each frame we perturb every cell with random noise (stronger
+// higher up, where real flames dance most), then map the resulting heat through a hot→cool
+// gradient of glyphs and colors.
 func dataFrameSprite() string {
-	row1 := "   ▄▄░▄▄▒"
-	row2 := " ██████▌ "
-	row3 := "▐██████▌ "
-	row4 := " ▀▀▀▀▀▀ "
+	// heat is each cell's resting intensity (0..1): hottest low-center, tapering up and out.
+	heat := [][]float64{
+		{0.00, 0.00, 0.00, 0.18, 0.28, 0.18, 0.00, 0.00, 0.00},
+		{0.00, 0.10, 0.32, 0.68, 0.72, 0.68, 0.32, 0.10, 0.00},
+		{0.40, 0.42, 0.82, 0.92, 0.96, 0.92, 0.82, 0.26, 0.40},
+		{0.50, 0.80, 1.00, 0.96, 0.99, 0.96, 1.00, 0.80, 0.50},
+		{0.40, 0.65, 0.82, 0.82, 0.92, 0.82, 0.72, 0.49, 0.40},
+	}
 
-	// TODO(polish): add colors
-	return strings.Join([]string{row1, row2, row3, row4}, "\n")
+	n := len(heat)
+	var sb strings.Builder
+	for i, row := range heat {
+		// Cells flicker more near the tip (top) and barely at the stable base (bottom).
+		flicker := 0.45 * (1 - float64(i)/float64(n-1))
+		for _, base := range row {
+			if base <= 0 {
+				sb.WriteByte(' ')
+				continue
+			}
+			if base == 1.00 {
+				sb.WriteString(flameEyesStyle.Render("█"))
+				continue
+			}
+			
+			h := base + (rand.Float64()*2-1)*flicker
+			switch {
+			case h >= 0.88:
+				sb.WriteString(flameWhiteStyle.Render("█"))
+			case h >= 0.66:
+				sb.WriteString(flameYellowStyle.Render("█"))
+			case h >= 0.44:
+				sb.WriteString(flameOrangeStyle.Render("█"))
+			case h >= 0.26:
+				sb.WriteString(flameOrangeStyle.Render("▓"))
+			case h >= 0.12:
+				sb.WriteString(flameRedStyle.Render("▒"))
+			case h > 0.02:
+				sb.WriteString(flameRedStyle.Render("░"))
+			default:
+				sb.WriteByte(' ')
+			}
+		}
+		if i < n-1 {
+			sb.WriteByte('\n')
+		}
+	}
+	sb.WriteString("\n")
+	sb.WriteString(flameOrangeStyle.Render(" ▀▀▀▀▀▀▀ "))
+	return sb.String()
 }
