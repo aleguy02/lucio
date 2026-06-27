@@ -73,7 +73,7 @@ type PlaybackMsg struct {
 }
 
 type QueueMsg struct {
-	Id   string `json:"spotify_id"  jsonschema:"The Spotify track ID"`
+	Id   string `json:"spotify_id"  jsonschema:"The track's Spotify ID"`
 	Name string `json:"name"`
 }
 

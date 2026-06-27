@@ -79,7 +79,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 				if string(a.ID) == "" {
 					continue
 				}
-				artists = append(artists, Artist{URI: string(a.URI), ID: string(a.ID), Name: a.Name})
+				artists = append(artists, Artist{ID: string(a.ID), Name: a.Name})
 			}
 		}
 		out, encErr = toon.Encode(searchArtistsJSON{Artists: artists}, nil)
@@ -104,7 +104,6 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 					artistNames = append(artistNames, artist.Name)
 				}
 				albums = append(albums, Album{
-					URI:         string(a.URI),
 					ID:          string(a.ID),
 					Name:        a.Name,
 					Artists:     strings.Join(artistNames, ", "),
@@ -135,7 +134,6 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 					artistNames = append(artistNames, artist.Name)
 				}
 				tracks = append(tracks, Track{
-					URI:         string(t.URI),
 					ID:          string(t.ID),
 					Name:        t.Name,
 					Artists:     strings.Join(artistNames, ", "),
@@ -163,7 +161,6 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 					continue
 				}
 				playlists = append(playlists, Playlist{
-					URI:           string(p.URI),
 					ID:            string(p.ID),
 					Name:          p.Name,
 					Owner:         p.Owner.DisplayName,

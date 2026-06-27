@@ -228,7 +228,6 @@ func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID strin
 			artistNames = append(artistNames, a.Name)
 		}
 		tracks = append(tracks, Track{
-			URI:         string(t.URI),
 			ID:          string(t.ID),
 			Name:        t.Name,
 			Artists:     strings.Join(artistNames, ", "),

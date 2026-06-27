@@ -3,8 +3,10 @@ package spotify
 import (
 	"aleguy02/spotify-tui/internal/toon"
 	"context"
+	"fmt"
 	"strings"
 
+	zmb "github.com/zmb3/spotify/v2"
 	"google.golang.org/adk/tool"
 )
 
@@ -43,7 +45,6 @@ func (c *SpotifyClient) GetNowPlayingTool(ctx tool.Context, _ struct{}) (GetNowP
 			artistNames = append(artistNames, a.Name)
 		}
 		j.Track = Track{
-			URI:         string(t.URI),
 			ID:          string(t.ID),
 			Name:        t.Name,
 			Artists:     strings.Join(artistNames, ", "),
@@ -97,7 +98,12 @@ func (c *SpotifyClient) AddToQueueTool(ctx tool.Context, args AddToQueueToolArgs
 	return AddToQueueToolResult{Success: true}, nil
 }
 
-type PlayItemToolArgs = PlaybackMsg
+// TODO(current): this one needs the URIs depending on which type is passed in. I'll find a way to only require the type and the ID
+// type PlayItemToolArgs = PlaybackMsg
+type PlayItemToolArgs struct {
+	Type int `json:"spotify_type"          jsonschema:"The Spotify item type as an integer. album=1 artist=2 playlist=4 track=8"`
+	ID string `json:"id" jsonschema:"Spotify ID of the item to play"`
+}
 
 type PlayItemToolResult struct {
 	Success bool `json:"success"`
@@ -105,7 +111,36 @@ type PlayItemToolResult struct {
 
 func (c *SpotifyClient) PlayItemTool(ctx tool.Context, args PlayItemToolArgs) (PlayItemToolResult, error) {
 	logger.Printf("PlayItemTool: %+v", args)
-	if err := c.ExecutePlayback(args); err != nil {
+
+	var searchType zmb.SearchType
+	var uri zmb.URI
+
+	switch args.Type {
+	case 1:
+		searchType = zmb.SearchTypeAlbum
+		uri = zmb.URI("spotify:album:" + args.ID)
+	case 2:
+		searchType = zmb.SearchTypeArtist
+		uri = zmb.URI("spotify:artist:" + args.ID)
+	case 4:
+		searchType = zmb.SearchTypePlaylist
+		uri = zmb.URI("spotify:playlist:" + args.ID)
+	case 8:
+		searchType = zmb.SearchTypeTrack
+		uri = zmb.URI("spotify:track:" + args.ID)
+	default:
+		err := fmt.Errorf("unknown spotify type %d", args.Type)
+		logger.Printf("PlayItemTool: %v", err)
+		return PlayItemToolResult{Success: false}, err
+	}
+
+	msg := PlaybackMsg{
+		Type: searchType,
+		ID:   zmb.ID(args.ID),
+		URI:  uri,
+	}
+
+	if err := c.ExecutePlayback(msg); err != nil {
 		logger.Printf("PlayItemTool: error (status=%d): %v", spotifyErrStatus(err), err)
 		return PlayItemToolResult{Success: false}, err
 	}

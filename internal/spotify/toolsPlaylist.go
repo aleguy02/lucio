@@ -12,7 +12,7 @@ import (
 )
 
 type AddTracksToPlaylistToolArgs struct {
-	PlaylistID string   `json:"playlist_id" jsonschema:"The Spotify ID of the *playlist* to add items to"`
+	PlaylistID string   `json:"playlist_id" jsonschema:"Spotify ID of the *playlist* to add items to"`
 	TrackIDs   []string `json:"track_ids"        jsonschema:"Spotify IDs of the *tracks* to add. Maximum 30"`
 }
 
@@ -38,7 +38,7 @@ func (c *SpotifyClient) AddTracksToPlaylistTool(ctx tool.Context, args AddTracks
 	for i, id := range args.TrackIDs {
 		uris[i] = fmt.Sprintf("spotify:track:%s", id)
 	}
-	logger.Printf("AddTracksToPlaylistTool: playlist_id=%q track_ids=%v", args.PlaylistID, args.TrackIDs)
+	logger.Printf("AddTracksToPlaylistTool: playlist_id=%q track_ids=\"%v\"", args.PlaylistID, args.TrackIDs)
 
 	snap, err := c.addPlaylistItems(context.Background(), args.PlaylistID, uris)
 	if err != nil {
@@ -49,7 +49,7 @@ func (c *SpotifyClient) AddTracksToPlaylistTool(ctx tool.Context, args AddTracks
 }
 
 type RemoveTracksFromPlaylistToolArgs struct {
-	PlaylistID string   `json:"playlist_id" jsonschema:"The Spotify ID of the *playlist* to remove items from"`
+	PlaylistID string   `json:"playlist_id" jsonschema:"Spotify ID of the *playlist* to remove items from"`
 	TrackIDs   []string `json:"track_ids"        jsonschema:"Spotify IDs of the *tracks* to remove. Maximum 30"`
 }
 
@@ -75,7 +75,7 @@ func (c *SpotifyClient) RemoveTracksFromPlaylistTool(ctx tool.Context, args Remo
 	for i, id := range args.TrackIDs {
 		uris[i] = fmt.Sprintf("spotify:track:%s", id)
 	}
-	logger.Printf("RemoveTracksFromPlaylistTool: playlist_id=%q track_ids=%v", args.PlaylistID, args.TrackIDs)
+	logger.Printf("RemoveTracksFromPlaylistTool: playlist_id=%q track_ids=\"%v\"", args.PlaylistID, args.TrackIDs)
 
 	snap, err := c.removePlaylistItems(context.Background(), args.PlaylistID, uris)
 	if err != nil {
@@ -86,7 +86,7 @@ func (c *SpotifyClient) RemoveTracksFromPlaylistTool(ctx tool.Context, args Remo
 }
 
 type RemovePlaylistsFromLibraryToolArgs struct {
-	PlaylistIDs []string `json:"playlist_ids" jsonschema:"Spotify playlist IDs to remove from the user's library. Maximum 10"`
+	PlaylistIDs []string `json:"playlist_ids" jsonschema:"Spotify IDs of the playlists to remove from the user's library. Maximum 10"`
 }
 
 type RemovePlaylistsFromLibraryToolResult struct {
@@ -130,7 +130,7 @@ type GetUserPlaylistsToolResult struct {
 
 type GetUserPlaylistsToolResultJSON struct {
 	Playlists []Playlist `json:"playlists"`
-	Total     int        `json:"total_user_playlists"`
+	Total     int        `json:"num_playlists_available"`
 }
 
 // Get a list of the current user's playlists on Spotify. Returns an array of playlists packed into SpotifyItems.
@@ -150,7 +150,6 @@ func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlayl
 	var playlists []Playlist
 	for _, p := range page.Playlists {
 		playlists = append(playlists, Playlist{
-			URI:           string(p.URI),
 			ID:            string(p.ID),
 			Name:          p.Name,
 			Owner:         p.Owner.DisplayName,
@@ -171,7 +170,7 @@ func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlayl
 }
 
 type GetPlaylistTracksToolArgs struct {
-	PlaylistID string `json:"playlist_id" jsonschema:"The Spotify ID of the playlist"`
+	PlaylistID string `json:"playlist_id" jsonschema:"Playlist's Spotify ID"`
 	Limit      int    `json:"limit"       jsonschema:"Maximum tracks to return (1-20). Default 20"`
 	Offset     int    `json:"offset"      jsonschema:"Pagination offset. Default 0"`
 }

@@ -25,11 +25,4 @@ Use the "webSearch" tool if the user asks for information that is not in your tr
 
 *Examples of questions where you SHOULD use "webSearch" tool*
 - "which album is Travis Scott most known for?" (this subjective question is best answered by crowd-sourced answers on the internet)
-- "what song plays when Superman fights Lex Luthor in Superman (2025)?" (this question requires recent data)
-
-## Spotify Formatting
-URIs - URIs will always be formatted as one of the following, where the <ID> is the item's Spotify ID:
-- spotify:album:<ID>
-- spotify:artist:<ID>
-- spotify:playlist:<ID>
-- spotify:track:<ID>`
+- "what song plays when Superman fights Lex Luthor in Superman (2025)?" (this question requires recent data)`

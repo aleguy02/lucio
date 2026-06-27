@@ -47,7 +47,7 @@ func tools(client *sp.SpotifyClient) ([]tool.Tool, error) {
 	playItemTool, err := functiontool.New(
 		functiontool.Config{
 			Name:        "spotifyPlayItem",
-			Description: "Play a track, album, artist, or playlist item on Spotify",
+			Description: "Play an item (track, album, artist, or playlist) on Spotify",
 		}, client.PlayItemTool)
 	if err != nil {
 		logger.Printf("failed to create function tool: %s", err)

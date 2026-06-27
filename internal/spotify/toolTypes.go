@@ -4,14 +4,12 @@ package spotify
 
 // Artist is a simplified representation of a Spotify artist.
 type Artist struct {
-	URI  string `json:"uri"`
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 // Album is a simplified representation of a Spotify album.
 type Album struct {
-	URI         string `json:"uri"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Artists     string `json:"artists"`
@@ -21,7 +19,6 @@ type Album struct {
 
 // Track is a simplified representation of a Spotify track.
 type Track struct {
-	URI         string `json:"uri"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Artists     string `json:"artists"`
@@ -32,7 +29,6 @@ type Track struct {
 
 // Playlist is a simplified representation of a Spotify playlist.
 type Playlist struct {
-	URI           string `json:"uri"`
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	Owner         string `json:"owner"`

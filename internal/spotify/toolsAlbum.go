@@ -10,7 +10,7 @@ import (
 )
 
 type GetAlbumsToolArgs struct {
-	AlbumIDs []string `json:"album_ids" jsonschema:"Spotify album IDs to look up. Maximum 20"`
+	AlbumIDs []string `json:"album_ids" jsonschema:"Spotify IDs of the albums to look up. Maximum 20"`
 }
 
 type GetAlbumsToolResult struct {
@@ -49,7 +49,6 @@ func (c *SpotifyClient) GetAlbumsTool(ctx tool.Context, args GetAlbumsToolArgs) 
 			artistNames = append(artistNames, artist.Name)
 		}
 		albums = append(albums, Album{
-			URI:         string(a.URI),
 			ID:          string(a.ID),
 			Name:        a.Name,
 			Artists:     strings.Join(artistNames, ", "),
@@ -67,7 +66,7 @@ func (c *SpotifyClient) GetAlbumsTool(ctx tool.Context, args GetAlbumsToolArgs) 
 }
 
 type GetAlbumTracksToolArgs struct {
-	AlbumID string `json:"album_id" jsonschema:"The Spotify ID of the album"`
+	AlbumID string `json:"album_id" jsonschema:"Album's Spotify ID"`
 	Limit   int    `json:"limit"    jsonschema:"Maximum tracks to return (1-20). Default 20"`
 	Offset  int    `json:"offset"   jsonschema:"Pagination offset. Default 0"`
 }
@@ -104,7 +103,6 @@ func (c *SpotifyClient) GetAlbumTracksTool(ctx tool.Context, args GetAlbumTracks
 			artistNames = append(artistNames, a.Name)
 		}
 		tracks = append(tracks, Track{
-			URI:         string(t.URI),
 			ID:          string(t.ID),
 			Name:        t.Name,
 			Artists:     strings.Join(artistNames, ", "),
