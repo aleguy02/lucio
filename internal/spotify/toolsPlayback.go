@@ -98,7 +98,6 @@ func (c *SpotifyClient) AddToQueueTool(ctx tool.Context, args AddToQueueToolArgs
 	return AddToQueueToolResult{Success: true}, nil
 }
 
-// TODO(current): this one needs the URIs depending on which type is passed in. I'll find a way to only require the type and the ID
 // type PlayItemToolArgs = PlaybackMsg
 type PlayItemToolArgs struct {
 	Type int `json:"spotify_type"          jsonschema:"The Spotify item type as an integer. album=1 artist=2 playlist=4 track=8"`

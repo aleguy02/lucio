@@ -317,9 +317,11 @@ func NewOllamaModel(c agentConf) (*ollamaLLM, error) {
 
 	var client *ollama.Client
 	if c.Model.URL != "" {
+		logger.Printf("using remote Ollama server: %v", u)
 		c := &http.Client{}
 		client = ollama.NewClient(u, c) // TODO: what happens if the url string parses correctly but is wrong?
 	} else {
+		logger.Printf("using local Ollama server")
 		client, err = ollama.ClientFromEnvironment()
 		if err != nil {
 			logger.Printf("failed create ollama client from environment: %s", err)
