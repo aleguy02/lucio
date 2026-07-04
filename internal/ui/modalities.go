@@ -9,6 +9,8 @@ import (
 	"github.com/common-nighthawk/go-figure"
 )
 
+// TODO(refactor): this whole file needs to be updated since modalites don't exist anymore. Just changing some variable names
+
 // Modality represents a feature or microservice that can be toggled.
 type Modality struct {
 	ID          string

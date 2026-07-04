@@ -90,9 +90,11 @@ type Menu struct {
 	agentTab   agentTabModel
 	width      int
 	height     int
+
+	spotifyClient *sp.SpotifyClient
 }
 
-func NewMenu() Menu {
+func NewMenu(client *sp.SpotifyClient) Menu {
 	ti := textinput.New()
 	ti.Placeholder = "command..."
 	ti.Prompt = ": "
@@ -120,6 +122,7 @@ func NewMenu() Menu {
 		nowPlaying:     NewNowPlaying(),
 		guide:          NewGuide(),
 		agentTab:       newAgentTabModel(),
+		spotifyClient:  client,
 	}
 }
 
@@ -258,6 +261,8 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = menuMode
 				m.successAlert = ""
 				m.alert = ""
+			
+			// TODO(current)
 			case key.Matches(msg, m.searchResults.Keys.Detail):
 				m.spotifyItem = NewSpotifyItemModel(m.searchResults.Selected())
 				m.spotifyItemPrev = searchResultsMode
@@ -450,8 +455,42 @@ func (m Menu) View() tea.View {
 		v.AltScreen = true
 		return v
 
+	// TODO(current)
 	case spotifyItemMode:
 		helpBar := m.help.View(m.spotifyItem.Keys)
+		itemType := m.spotifyItem.details.ItemType()
+		
+		if itemType == "album" || itemType == "playlist" {
+			var tracks []sp.Track
+			var err error
+
+			switch itemType {
+			case "album":
+				tracks, err = m.spotifyClient.GetAlbumItems(string(m.spotifyItem.details.RawItem().ID))
+				if err != nil {
+					TerminalLog.Printf("error getting album tracks: %v\n", err)
+				}
+			case "playlist":
+				tracks, err = m.spotifyClient.GetPlaylistItems(string(m.spotifyItem.details.RawItem().ID))
+				if err != nil {
+					TerminalLog.Printf("error getting playlist tracks: %v\n", err)
+				}
+			}
+
+			var tracklist strings.Builder
+			for i, t := range tracks {
+				part := fmt.Sprintf("%d\t%s • %s\n", i+1, t.Name, t.Artists)
+				tracklist.WriteString(part)
+			}
+			v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
+				m.spotifyItem.View(),
+				tracklist.String(),
+				m.searchItemBottom(helpBar),
+			))
+			v.AltScreen = true
+			return v
+		}
+
 		v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
 			m.spotifyItem.View(),
 			m.searchItemBottom(helpBar),
