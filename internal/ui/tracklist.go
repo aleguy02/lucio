@@ -22,15 +22,16 @@ type tracklistKeyMap struct {
 	Down      key.Binding
 	Select    key.Binding
 	AltSelect key.Binding
+	PlayItem  key.Binding
 	Back      key.Binding
 }
 
 func (k tracklistKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Select, k.AltSelect, k.Back}
+	return []key.Binding{k.Up, k.Down, k.Select, k.AltSelect, k.PlayItem, k.Back}
 }
 
 func (k tracklistKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.Select, k.AltSelect, k.Back}}
+	return [][]key.Binding{{k.Up, k.Down, k.Select, k.AltSelect, k.PlayItem, k.Back}}
 }
 
 func defaultTracklistKeyMap() tracklistKeyMap {
@@ -44,6 +45,10 @@ func defaultTracklistKeyMap() tracklistKeyMap {
 		AltSelect: key.NewBinding(
 			key.WithKeys("shift+enter"),
 			key.WithHelp("shift+enter", "queue track"),
+		),
+		PlayItem: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "play album"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "backspace"),

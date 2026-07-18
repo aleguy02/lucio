@@ -336,6 +336,15 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.spotifyItem.Keys.Back):
 				m.state = m.spotifyItemPrev
 				m.tracklist = TracklistModel{}
+			case !m.tracklist.Empty() && key.Matches(msg, m.tracklist.Keys.PlayItem):
+				if m.spotifyItem.details != nil {
+					item := m.spotifyItem.details.RawItem()
+					if item.URI != "" {
+						m.state = menuMode
+						return m, func() tea.Msg { return sp.PlaybackMsg{Type: item.Type, ID: item.ID, URI: item.URI} }
+					}
+					TerminalLog.Println("Warning: selected search result does not have URI")
+				}
 			case key.Matches(msg, m.spotifyItem.Keys.Select):
 				if !m.tracklist.Empty() {
 					track := m.tracklist.Selected()
