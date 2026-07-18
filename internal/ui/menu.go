@@ -12,6 +12,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	zmb "github.com/zmb3/spotify/v2"
 )
 
 type menuState int
@@ -79,6 +80,7 @@ type Menu struct {
 	searchResults   InteractiveSearchResultsModel
 	spotifyItem     SpotifyItemModel
 	spotifyItemPrev menuState
+	tracklist       TracklistModel
 
 	history    []string
 	historyIdx int
@@ -161,6 +163,9 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Agent tab gets the content-area height (terminal height minus the 1-line help bar).
 		agentMsg := tea.WindowSizeMsg{Width: msg.Width, Height: max(1, msg.Height-1)}
 		m.agentTab, _ = m.agentTab.Update(agentMsg)
+		if m.state == spotifyItemMode && !m.tracklist.Empty() {
+			m.tracklist.SetSize(m.tracklistBoxSize())
+		}
 		return m, nil
 
 	case backToMenuMsg:
@@ -170,11 +175,17 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sp.SpotifyRouteErrorMsg:
 		m.alert = string(msg)
 		m.successAlert = ""
+		if m.state == spotifyItemMode && !m.tracklist.Empty() {
+			m.tracklist.SetSize(m.tracklistBoxSize())
+		}
 		return m, nil
 
 	case sp.QueueSuccessMsg:
 		m.successAlert = string(msg)
 		m.alert = ""
+		if m.state == spotifyItemMode && !m.tracklist.Empty() {
+			m.tracklist.SetSize(m.tracklistBoxSize())
+		}
 		return m, nil
 
 	// case sp.LikeSuccessMsg:
@@ -185,6 +196,9 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sp.DevicesResultMsg:
 		m.successAlert = string(msg)
 		m.alert = ""
+		if m.state == spotifyItemMode && !m.tracklist.Empty() {
+			m.tracklist.SetSize(m.tracklistBoxSize())
+		}
 		return m, nil
 
 	case sp.SearchResultsMsg:
@@ -261,12 +275,35 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = menuMode
 				m.successAlert = ""
 				m.alert = ""
-			
-			// TODO(current)
+				m.tracklist = TracklistModel{}
+
 			case key.Matches(msg, m.searchResults.Keys.Detail):
 				m.spotifyItem = NewSpotifyItemModel(m.searchResults.Selected())
 				m.spotifyItemPrev = searchResultsMode
 				m.state = spotifyItemMode
+
+				itemType := m.spotifyItem.details.ItemType()
+				if m.tracklist.Empty() && (itemType == "album" || itemType == "playlist") {
+					var tracks []sp.Track
+					var err error
+
+					switch itemType {
+					case "album":
+						tracks, err = m.spotifyClient.GetAlbumItems(string(m.spotifyItem.details.RawItem().ID))
+						if err != nil {
+							TerminalLog.Printf("error getting album tracks: %v\n", err)
+						}
+					case "playlist":
+						tracks, err = m.spotifyClient.GetPlaylistItems(string(m.spotifyItem.details.RawItem().ID))
+						if err != nil {
+							TerminalLog.Printf("error getting playlist tracks: %v\n", err)
+						}
+					}
+
+					m.tracklist = NewTracklistModel(tracks)
+					m.tracklist.SetSize(m.tracklistBoxSize())
+				}
+
 			case key.Matches(msg, m.searchResults.Keys.Select):
 				item := m.searchResults.Selected()
 				if item.URI != "" {
@@ -274,6 +311,7 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, func() tea.Msg { return sp.PlaybackMsg{Type: item.Type, ID: item.ID, URI: item.URI} }
 				}
 				TerminalLog.Println("Warning: selected search result does not have URI")
+
 			case key.Matches(msg, m.searchResults.Keys.AltSelect):
 				item := m.searchResults.Selected()
 				// 1 is albums, 4 is playlists
@@ -297,8 +335,17 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.spotifyItem.Keys.Back):
 				m.state = m.spotifyItemPrev
+				m.tracklist = TracklistModel{}
 			case key.Matches(msg, m.spotifyItem.Keys.Select):
-				if m.spotifyItem.details != nil {
+				if !m.tracklist.Empty() {
+					track := m.tracklist.Selected()
+					if track.ID != "" {
+						return m, func() tea.Msg {
+							return sp.PlaybackMsg{Type: zmb.SearchTypeTrack, ID: zmb.ID(track.ID)}
+						}
+					}
+					TerminalLog.Println("Warning: selected track does not have an ID")
+				} else if m.spotifyItem.details != nil {
 					item := m.spotifyItem.details.RawItem()
 					if item.URI != "" {
 						m.state = menuMode
@@ -307,6 +354,14 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					TerminalLog.Println("Warning: selected search result does not have URI")
 				}
 			case key.Matches(msg, m.spotifyItem.Keys.AltSelect):
+				if !m.tracklist.Empty() {
+					track := m.tracklist.Selected()
+					if track.ID != "" {
+						return m, func() tea.Msg { return sp.QueueMsg{Id: track.ID, Name: track.Name} }
+					}
+					TerminalLog.Println("Warning: selected track does not have an ID")
+					break
+				}
 				item := m.spotifyItem.details.RawItem()
 				// 1 is albums, 4 is playlists
 				if item.Type == 1 || item.Type == 4 {
@@ -321,6 +376,8 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, func() tea.Msg { return sp.QueueMsg{Id: string(item.ID), Name: name} }
 				}
 				TerminalLog.Println("Warning: selected search result does not have ID")
+			default:
+				m.tracklist, cmd = m.tracklist.Update(msg)
 			}
 
 		case helpMode:
@@ -455,44 +512,15 @@ func (m Menu) View() tea.View {
 		v.AltScreen = true
 		return v
 
-	// TODO(current)
 	case spotifyItemMode:
-		helpBar := m.help.View(m.spotifyItem.Keys)
-		itemType := m.spotifyItem.details.ItemType()
-		
-		if itemType == "album" || itemType == "playlist" {
-			var tracks []sp.Track
-			var err error
-
-			switch itemType {
-			case "album":
-				tracks, err = m.spotifyClient.GetAlbumItems(string(m.spotifyItem.details.RawItem().ID))
-				if err != nil {
-					TerminalLog.Printf("error getting album tracks: %v\n", err)
-				}
-			case "playlist":
-				tracks, err = m.spotifyClient.GetPlaylistItems(string(m.spotifyItem.details.RawItem().ID))
-				if err != nil {
-					TerminalLog.Printf("error getting playlist tracks: %v\n", err)
-				}
-			}
-
-			var tracklist strings.Builder
-			for i, t := range tracks {
-				part := fmt.Sprintf("%d\t%s • %s\n", i+1, t.Name, t.Artists)
-				tracklist.WriteString(part)
-			}
-			v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
-				m.spotifyItem.View(),
-				tracklist.String(),
-				m.searchItemBottom(helpBar),
-			))
-			v.AltScreen = true
-			return v
+		keys := help.KeyMap(m.spotifyItem.Keys)
+		if !m.tracklist.Empty() {
+			keys = m.tracklist.Keys
 		}
-
+		helpBar := m.help.View(keys)
 		v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
 			m.spotifyItem.View(),
+			m.tracklist.View(),
 			m.searchItemBottom(helpBar),
 		))
 		v.AltScreen = true
@@ -565,6 +593,18 @@ func (m Menu) searchItemBottom(helpBar string) string {
 		return lipgloss.JoinVertical(lipgloss.Left, successAlertStyle.Render("+ "+m.successAlert), helpBar)
 	}
 	return helpBar
+}
+
+// tracklistBoxSize computes the outer width/height available to the tracklist
+// box: full terminal width, and terminal height minus the item details view
+// and the bottom help/alert bar.
+func (m Menu) tracklistBoxSize() (width, height int) {
+	if m.width <= 0 || m.height <= 0 {
+		return 0, 3
+	}
+	detailsHeight := lipgloss.Height(m.spotifyItem.View())
+	bottomHeight := lipgloss.Height(m.searchItemBottom(m.help.View(m.spotifyItem.Keys)))
+	return m.width, max(3, m.height-detailsHeight-bottomHeight)
 }
 
 func (m Menu) renderLayout(tabContent, bottomBar string) tea.View {
