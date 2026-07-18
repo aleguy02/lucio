@@ -404,6 +404,39 @@ func (c *SpotifyClient) QueueSong(msg QueueMsg) error {
 	return err
 }
 
+func (c *SpotifyClient) GetPlaylistItems(playlistID string) ([]Track, error) {
+	tracks, _, err := c.fetchPlaylistItems(context.Background(), playlistID, nil)
+	if err != nil {
+		logger.Printf("GetPlaylistItems %q: %v", playlistID, err)
+		return nil, err
+	}
+	return tracks, nil
+}
+
+func (c *SpotifyClient) GetAlbumItems(playlistID string) ([]Track, error) {
+	tracksRaw, err := c.client.GetAlbumTracks(context.Background(), zmb.ID(playlistID))
+	if err != nil {
+		logger.Printf("GetAlbumItems %q: %v", playlistID, err)
+		return nil, err
+	}
+	var tracks []Track
+	for _, t := range tracksRaw.Tracks {
+		var artistNames []string
+		for _, a := range t.Artists {
+			artistNames = append(artistNames, a.Name)
+		}
+		tracks = append(tracks, Track{
+			ID: string(t.ID),
+			Name: t.Name,
+			Artists: strings.Join(artistNames, ", "),
+			Album: t.Album.Name,
+			DurationMs: int(t.Duration),
+			TrackNumber: int(t.TrackNumber),
+		})
+	}
+	return tracks, nil
+}
+
 // func (c *SpotifyClient) LikeTrack(id string) error {
 // 	err := c.client.AddTracksToLibrary(context.Background(), zmb.ID(id))
 // 	if err != nil {

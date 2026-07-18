@@ -43,7 +43,7 @@ type Model struct {
 func newModel(client *sp.SpotifyClient, sesh session.Service, agentRunner *adkrunner.Runner) *Model {
 	return &Model{
 		active:         0,
-		views:          []tea.Model{ui.NewMenu()},
+		views:          []tea.Model{ui.NewMenu(client)},
 		spotifyClient:  client,
 		agentRunner:    agentRunner,
 		sessionService: sesh,
