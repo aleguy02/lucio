@@ -140,7 +140,7 @@ func (c agentChatModel) renderMessages() string {
 	if c.isResponding {
 		content := c.streamAccumulator
 		if content == "" && len(c.streamToolCalls) == 0 {
-			content = "..."
+			content = "thinking..."
 		}
 		lines = append(lines, renderMessage(Message{Sender: SenderAgent, Content: content, ToolCalls: c.streamToolCalls}))
 	}
@@ -414,7 +414,7 @@ func dataFrameSprite() string {
 				sb.WriteString(flameEyesStyle.Render("█"))
 				continue
 			}
-			
+
 			h := base + (rand.Float64()*2-1)*flicker
 			switch {
 			case h >= 0.88:

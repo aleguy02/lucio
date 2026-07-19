@@ -100,8 +100,8 @@ func (c *SpotifyClient) AddToQueueTool(ctx tool.Context, args AddToQueueToolArgs
 
 // type PlayItemToolArgs = PlaybackMsg
 type PlayItemToolArgs struct {
-	Type int `json:"spotify_type"          jsonschema:"The Spotify item type as an integer. album=1 artist=2 playlist=4 track=8"`
-	ID string `json:"id" jsonschema:"Spotify ID of the item to play"`
+	Type int    `json:"spotify_type"          jsonschema:"The Spotify item type as an integer. album=1 artist=2 playlist=4 track=8"`
+	ID   string `json:"id" jsonschema:"Spotify ID of the item to play"`
 }
 
 type PlayItemToolResult struct {

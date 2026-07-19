@@ -426,11 +426,11 @@ func (c *SpotifyClient) GetAlbumItems(playlistID string) ([]Track, error) {
 			artistNames = append(artistNames, a.Name)
 		}
 		tracks = append(tracks, Track{
-			ID: string(t.ID),
-			Name: t.Name,
-			Artists: strings.Join(artistNames, ", "),
-			Album: t.Album.Name,
-			DurationMs: int(t.Duration),
+			ID:          string(t.ID),
+			Name:        t.Name,
+			Artists:     strings.Join(artistNames, ", "),
+			Album:       t.Album.Name,
+			DurationMs:  int(t.Duration),
 			TrackNumber: int(t.TrackNumber),
 		})
 	}

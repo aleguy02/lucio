@@ -213,6 +213,7 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 
 		var accumulated strings.Builder
 		var pendingToolCalls []ollama.ToolCall
+		var accumulatedThinking strings.Builder
 
 		respFunc := func(resp ollama.ChatResponse) error {
 			if appConf.VerboseLogging {
@@ -229,6 +230,7 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			// This is where we stream tokens back to the user to display them in the TUI
 			if !resp.Done {
 				accumulated.WriteString(resp.Message.Content)
+				accumulatedThinking.WriteString(resp.Message.Thinking)
 				// Only forward non-empty tokens; skip thinking-only tokens.
 				// TODO(improvement): forward a signal that the model is thinking, to surface in UI
 				if resp.Message.Content != "" {
@@ -268,9 +270,16 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			}
 
 			text := accumulated.String()
+			thought := accumulatedThinking.String()
 			ch <- callbackRes{res: model.LLMResponse{
 				Content: &genai.Content{
-					Parts: []*genai.Part{{Text: text}},
+					Parts: []*genai.Part{{Text: thought, Thought: true}},
+					Role:  "model",
+				},
+			}}
+			ch <- callbackRes{res: model.LLMResponse{
+				Content: &genai.Content{
+					Parts: []*genai.Part{{Text: text, Thought: false}},
 					Role:  "model",
 				},
 				TurnComplete: true,

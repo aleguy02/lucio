@@ -23,7 +23,7 @@ type Track struct {
 	Name        string `json:"name"`
 	Artists     string `json:"artists"`
 	Album       string `json:"album"`
-	DurationMs  int    `json:"duration_ms"`  // TODO(refactor): let's just use seconds for easier translation to minutes lol
+	DurationMs  int    `json:"duration_ms"` // TODO(refactor): let's just use seconds for easier translation to minutes lol
 	TrackNumber int    `json:"track_number"`
 }
 
