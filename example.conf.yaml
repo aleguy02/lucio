@@ -14,6 +14,8 @@ model:
   settings:
     thinking: true # optional; omit to use the model's default
     temperature: # optional; omit to use the model's default
+    num_ctx: 8192 # optional; context window size; omit to use the model default
 
 # optional; Set verbose_logging to true if you want to log every token streamed from the LLM. Recommended only for debugging. Only supported with Ollama
 verbose_logging: false
+persist_thinking_to_history: false # optional; save thinking tokens in chat history; this may bloat context.

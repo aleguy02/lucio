@@ -26,6 +26,7 @@ type agentConf struct {
 		Settings struct {
 			Thinking    bool     `yaml:"thinking"`
 			Temperature *float32 `yaml:"temperature"`
+			NumCtx      *int     `yaml:"num_ctx"`
 		} `yaml:"settings"`
 	} `yaml:"model"`
 }
@@ -38,8 +39,9 @@ type callbackRes struct {
 var logger *log.Logger
 var confPath = "conf.yaml"
 var appConf struct {
-	TavilyAPIKey   string `yaml:"tavily_api_key"`
-	VerboseLogging bool   `yaml:"verbose_logging"`
+	TavilyAPIKey    string `yaml:"tavily_api_key"`
+	VerboseLogging  bool   `yaml:"verbose_logging"`
+	PersistThinking bool   `yaml:"persist_thinking_to_history"`
 }
 
 func init() {

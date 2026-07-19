@@ -25,6 +25,7 @@ type ollamaLLM struct {
 	name            string
 	thinkingEnabled bool
 	temperature     *float32
+	numCtx          *int
 }
 
 func (m *ollamaLLM) Name() string {
@@ -110,6 +111,7 @@ func makeOllamaMessages(contents []*genai.Content, size int) []ollama.Message {
 
 		var (
 			text            strings.Builder
+			thinking        strings.Builder
 			toolCalls       []ollama.ToolCall // agents can do multiple tool calls in one turn (i.e. parallel tools), so we make an array
 			toolResponse    ollama.Message
 			hasToolResponse bool
@@ -142,9 +144,7 @@ func makeOllamaMessages(contents []*genai.Content, size int) []ollama.Message {
 				text.WriteString(part.Text)
 
 			case part.Thought:
-				text.WriteString("<THINKING>")
-				text.WriteString(part.Text)
-				text.WriteString("<THINKING>")
+				thinking.WriteString(part.Text)
 			}
 		}
 
@@ -156,10 +156,15 @@ func makeOllamaMessages(contents []*genai.Content, size int) []ollama.Message {
 				Role:      role,
 				ToolCalls: toolCalls,
 			})
-		default:
+		case text.String() != "":
 			msgs = append(msgs, ollama.Message{
 				Role:    role,
 				Content: text.String(),
+			})
+		case thinking.String() != "":
+			msgs = append(msgs, ollama.Message{
+				Role:     role,
+				Thinking: thinking.String(),
 			})
 		}
 	}
@@ -207,8 +212,15 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			Stream: &stream,
 			Tools:  tools,
 		}
-		if m.temperature != nil {
-			oReq.Options = map[string]any{"temperature": *m.temperature}
+		if m.temperature != nil || m.numCtx != nil {
+			options := map[string]any{}
+			if m.temperature != nil {
+				options["temperature"] = *m.temperature
+			}
+			if m.numCtx != nil {
+				options["num_ctx"] = *m.numCtx
+			}
+			oReq.Options = options
 		}
 
 		var accumulated strings.Builder
@@ -270,13 +282,15 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			}
 
 			text := accumulated.String()
-			thought := accumulatedThinking.String()
-			ch <- callbackRes{res: model.LLMResponse{
-				Content: &genai.Content{
-					Parts: []*genai.Part{{Text: thought, Thought: true}},
-					Role:  "model",
-				},
-			}}
+			if appConf.PersistThinking {
+				thought := accumulatedThinking.String()
+				ch <- callbackRes{res: model.LLMResponse{
+					Content: &genai.Content{
+						Parts: []*genai.Part{{Text: thought, Thought: true}},
+						Role:  "model",
+					},
+				}}
+			}
 			ch <- callbackRes{res: model.LLMResponse{
 				Content: &genai.Content{
 					Parts: []*genai.Part{{Text: text, Thought: false}},
@@ -346,5 +360,6 @@ func NewOllamaModel(c agentConf) (*ollamaLLM, error) {
 		name:            c.Model.Name,
 		thinkingEnabled: c.Model.Settings.Thinking,
 		temperature:     c.Model.Settings.Temperature,
+		numCtx:          c.Model.Settings.NumCtx,
 	}, nil
 }
