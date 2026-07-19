@@ -36,6 +36,7 @@ func (m *ollamaLLM) GenerateContent(ctx context.Context, req *model.LLMRequest, 
 	if !stream {
 		panic("whoopsy fucking daisy! only stream is supported")
 	}
+	logger.Printf("called GenerateContent: model=%s messages=%d", req.Model, len(req.Contents))
 	return m.generateStream(ctx, req)
 }
 
@@ -98,79 +99,86 @@ func adkToolToOllamaTool(decl *genai.FunctionDeclaration) ollama.Tool {
 	return t
 }
 
+func makeOllamaMessages(contents []*genai.Content, size int) []ollama.Message {
+	msgs := make([]ollama.Message, 0, size)
+
+	for _, content := range contents {
+		role := content.Role
+		if role == "model" {
+			role = "assistant" // ollama uses OpenAI API compatible format, which expects an "assistant" role
+		}
+
+		var (
+			text            strings.Builder
+			toolCalls       []ollama.ToolCall // agents can do multiple tool calls in one turn (i.e. parallel tools), so we make an array
+			toolResponse    ollama.Message
+			hasToolResponse bool
+		)
+
+		for _, part := range content.Parts {
+			switch {
+			case part.FunctionCall != nil:
+				args := ollama.NewToolCallFunctionArguments()
+				for k, v := range part.FunctionCall.Args {
+					args.Set(k, v)
+				}
+				toolCalls = append(toolCalls, ollama.ToolCall{
+					Function: ollama.ToolCallFunction{
+						Name:      part.FunctionCall.Name,
+						Arguments: args,
+					},
+				})
+
+			case part.FunctionResponse != nil:
+				content, _ := json.Marshal(part.FunctionResponse.Response)
+				toolResponse = ollama.Message{
+					Role:     "tool",
+					Content:  string(content),
+					ToolName: part.FunctionResponse.Name,
+				}
+				hasToolResponse = true
+
+			case !part.Thought:
+				text.WriteString(part.Text)
+
+			case part.Thought:
+				text.WriteString("<THINKING>")
+				text.WriteString(part.Text)
+				text.WriteString("<THINKING>")
+			}
+		}
+
+		switch {
+		case hasToolResponse:
+			msgs = append(msgs, toolResponse)
+		case len(toolCalls) > 0:
+			msgs = append(msgs, ollama.Message{
+				Role:      role,
+				ToolCalls: toolCalls,
+			})
+		default:
+			msgs = append(msgs, ollama.Message{
+				Role:    role,
+				Content: text.String(),
+			})
+		}
+	}
+
+	return msgs
+}
+
 // Model-layer function to generate an iterable stream of tokens. This function handles translation between ADK and Ollama.
 func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
 		ch := make(chan callbackRes)
-		logger.Printf("generateStream: model=%s messages=%d", req.Model, len(req.Contents))
 
 		// First half of this function is a translation layer between ADK <--> Ollama
 		// ADK --> Ollama parsing happens here
-		msgs := make([]ollama.Message, 0, len(req.Contents))
-		for _, c := range req.Contents {
-			role := c.Role
-			if role == "model" {
-				role = "assistant"
-			}
-
-			var text string
-			var toolCalls []ollama.ToolCall
-			var toolResponses []ollama.Message
-
-			for _, p := range c.Parts {
-				switch {
-				case p.FunctionCall != nil:
-					args := ollama.NewToolCallFunctionArguments()
-					for k, v := range p.FunctionCall.Args {
-						args.Set(k, v)
-					}
-					toolCalls = append(toolCalls, ollama.ToolCall{
-						// ID: p.FunctionCall.ID,  // This isn't showing up
-						Function: ollama.ToolCallFunction{
-							Name:      p.FunctionCall.Name,
-							Arguments: args,
-						},
-					})
-
-				case p.FunctionResponse != nil:
-					content, _ := json.Marshal(p.FunctionResponse.Response)
-					toolResponses = append(toolResponses, ollama.Message{
-						Role:     "tool",
-						Content:  string(content),
-						ToolName: p.FunctionResponse.Name,
-						// ToolCallID: p.FunctionResponse.ID,  // This isn't showing up
-					})
-
-				case !p.Thought:
-					text += p.Text
-				}
-			}
-
-			if len(toolResponses) > 0 {
-				msgs = append(msgs, toolResponses...)
-			} else if len(toolCalls) > 0 {
-				msgs = append(msgs, ollama.Message{Role: role, ToolCalls: toolCalls})
-			} else {
-				msgs = append(msgs, ollama.Message{Role: role, Content: text})
-			}
-		}
+		msgs := makeOllamaMessages(req.Contents, len(req.Contents))
 
 		// reinject system prompt into every interaction. It isn't part of the messages
-		if req.Config != nil && req.Config.SystemInstruction != nil {
-			var systemText string
-			for _, p := range req.Config.SystemInstruction.Parts {
-				systemText += p.Text
-			}
-
-			// TODO: it might be guaranteed that systemText exists since I'm coding this. I'll come back to it
-			if systemText != "" {
-				msgs = append([]ollama.Message{{Role: "system", Content: systemText}}, msgs...)
-			}
-		}
-
-		// TODO(debug): remove in prod. Also there should be more logs for the agent I'll add those somewhere eventually
-		if b, err := json.MarshalIndent(msgs, "", "  "); err == nil {
-			logger.Printf("message history:\n%s", b)
+		if req.Config != nil && req.Config.SystemInstruction != nil && req.Config.SystemInstruction.Parts[0].Text != "" {
+			msgs = append([]ollama.Message{{Role: "system", Content: req.Config.SystemInstruction.Parts[0].Text}}, msgs...)
 		}
 
 		var tools []ollama.Tool
@@ -186,11 +194,6 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 				}
 			}
 		}
-
-		// uncomment for deep debugging
-		// if b, err := json.MarshalIndent(tools, "", "  "); err == nil {
-		// 	logger.Printf("tools sent to ollama:\n%s", b)
-		// }
 
 		// Second half of this function
 		stream := true
@@ -227,6 +230,7 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			if !resp.Done {
 				accumulated.WriteString(resp.Message.Content)
 				// Only forward non-empty tokens; skip thinking-only tokens.
+				// TODO(improvement): forward a signal that the model is thinking, to surface in UI
 				if resp.Message.Content != "" {
 					ch <- callbackRes{res: model.LLMResponse{
 						Content: &genai.Content{
@@ -264,13 +268,6 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			}
 
 			text := accumulated.String()
-			// Some models route their entire response into Thinking and leave
-			// Content empty. Fall back so the reply is never silently blank.
-			// TODO(bug): I think this is dead code. I haven't observed it ever doing anything
-			if text == "" && resp.Message.Thinking != "" {
-				logger.Printf("content empty, falling back to thinking text (%d chars)", len(resp.Message.Thinking))
-				text = "[WARNING]: content was empty, falling back to thinking text\n" + resp.Message.Thinking
-			}
 			ch <- callbackRes{res: model.LLMResponse{
 				Content: &genai.Content{
 					Parts: []*genai.Part{{Text: text}},
@@ -281,7 +278,12 @@ func (m *ollamaLLM) generateStream(ctx context.Context, req *model.LLMRequest) i
 			return nil
 		}
 		go func() {
-			err := m.client.Chat(ctx, oReq, respFunc)
+			prettyJSON, err := json.MarshalIndent(oReq.Messages, "", "  ")
+			if err != nil {
+				logger.Fatalf("Failed to prettify JSON: %v", err)
+			}
+			logger.Printf("message history:\n%s", prettyJSON)
+			err = m.client.Chat(ctx, oReq, respFunc)
 			if err != nil {
 				ch <- callbackRes{err: err}
 			} else {
