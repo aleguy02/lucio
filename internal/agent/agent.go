@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -10,8 +11,10 @@ import (
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
+	"google.golang.org/adk/model/gemini"
 	"google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
+	"google.golang.org/genai"
 	"gopkg.in/yaml.v3"
 
 	sp "aleguy02/spotify-tui/internal/spotify"
@@ -85,18 +88,25 @@ func NewRunner(client *sp.SpotifyClient) (session.Service, *runner.Runner, error
 		logger.Printf("webSearch tool will be injected: Tavily API key was set")
 	}
 
-	llm, err := NewOllamaModel(c)
-	if err != nil {
-		logger.Printf("failed to create ollama model: %s", err)
-		return nil, nil, fmt.Errorf("failed to create ollama model: %w", err)
+	var llm model.LLM
+	switch c.Model.Provider {
+	case "ollama":
+		logger.Println("ollama model used")
+		llm, err = NewOllamaModel(c)
+		if err != nil {
+			logger.Printf("failed to create ollama model: %s", err)
+			return nil, nil, fmt.Errorf("failed to create ollama model: %w", err)
+		}
+	case "gemini":
+		logger.Println("gemini model used")
+		ctx := context.Background()
+		llm, err = gemini.NewModel(ctx, c.Model.Name, &genai.ClientConfig{
+			APIKey: c.Model.APIKey,
+		})
+		if err != nil {
+			log.Fatalf("Failed to create gemini model: %v", err)
+		}
 	}
-	// ctx := context.Background()
-	// llm, err := gemini.NewModel(ctx, "gemini-2.5-flash", &genai.ClientConfig{
-	//     APIKey: "AQ.Ab8RN6KRiks08cLWeqC7kdiewrzWYqf-2GYZKipWQCVSYQWkfA",
-	// })
-	// if err != nil {
-	//     log.Fatalf("Failed to create model: %v", err)
-	// }
 
 	// TODO(bug): sometimes newlines render extra tall sometimes not. It makes the agent response look messed up
 	// this is a temporary fix to clamp extra newlines to mitigate the issue
