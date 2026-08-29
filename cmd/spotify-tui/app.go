@@ -91,6 +91,8 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 		}
 	}
 
+	seenToolCallIDs := make(map[string]bool)
+
 	for event, err := range r.Run(ctx, agentUserID, agentSessionID, msg, adkagent.RunConfig{StreamingMode: adkagent.StreamingModeSSE}) {
 		if err != nil {
 			streamCh <- ui.AgentChunkMsg{Err: err, Done: true}
@@ -102,6 +104,13 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 		for _, part := range event.Content.Parts {
 			switch {
 			case part.FunctionCall != nil:
+				// Dedup function calls by ID so it's only forwarded once.
+				if part.FunctionCall.ID != "" {
+					if seenToolCallIDs[part.FunctionCall.ID] {
+						continue
+					}
+					seenToolCallIDs[part.FunctionCall.ID] = true
+				}
 				if part.FunctionCall.Name == toolconfirmation.FunctionCallName {
 					orig, err := toolconfirmation.OriginalCallFrom(part.FunctionCall)
 					if err != nil {
