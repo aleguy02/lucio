@@ -149,6 +149,7 @@ func (c *SpotifyClient) GetUserPlaylistsTool(ctx tool.Context, args GetUserPlayl
 
 	var playlists []Playlist
 	for _, p := range page.Playlists {
+		c.setCache(string(p.ID), p.Name)
 		playlists = append(playlists, Playlist{
 			ID:            string(p.ID),
 			Name:          p.Name,

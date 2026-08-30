@@ -227,6 +227,7 @@ func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID strin
 		for _, a := range t.Artists {
 			artistNames = append(artistNames, a.Name)
 		}
+		c.setCache(string(t.ID), t.Name)
 		tracks = append(tracks, Track{
 			ID:          string(t.ID),
 			Name:        t.Name,

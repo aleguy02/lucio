@@ -65,7 +65,7 @@ func waitForAgentChunkCmd(ch chan tea.Msg) tea.Cmd {
 }
 
 // Agent-layer function to produce an event stream
-func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, streamCh chan tea.Msg, funcID string, confirmed bool) {
+func runAgentStream(r *adkrunner.Runner, client *sp.SpotifyClient, ctx context.Context, text string, streamCh chan tea.Msg, funcID string, confirmed bool) {
 	defer close(streamCh)
 
 	var msg *genai.Content
@@ -118,7 +118,7 @@ func runAgentStream(r *adkrunner.Runner, ctx context.Context, text string, strea
 						streamCh <- ui.AgentChunkMsg{ConfirmRequired: true, ToolName: part.FunctionCall.Name, ToolArgs: part.FunctionCall.Args, ToolID: part.FunctionCall.ID}
 						continue
 					}
-					streamCh <- ui.AgentChunkMsg{ConfirmRequired: true, ToolName: orig.Name, ToolArgs: orig.Args, ToolID: part.FunctionCall.ID}
+					streamCh <- ui.AgentChunkMsg{ConfirmRequired: true, ToolName: orig.Name, ToolArgs: client.ResolveConfirmationArgs(orig.Name, orig.Args), ToolID: part.FunctionCall.ID}
 					continue
 				}
 				streamCh <- ui.AgentChunkMsg{ToolName: part.FunctionCall.Name, ToolArgs: part.FunctionCall.Args, ToolID: part.FunctionCall.ID}
@@ -220,7 +220,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.agentRunner != nil {
 			ch := make(chan tea.Msg)
 			m.agentChan = ch
-			go runAgentStream(m.agentRunner, context.Background(), "", ch, msg.ID, msg.Confirmed)
+			go runAgentStream(m.agentRunner, m.spotifyClient, context.Background(), "", ch, msg.ID, msg.Confirmed)
 			return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
 		}
 		return m, cmd
@@ -246,7 +246,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.agentRunner != nil {
 			ch := make(chan tea.Msg)
 			m.agentChan = ch
-			go runAgentStream(m.agentRunner, context.Background(), msg.Text, ch, "", false)
+			go runAgentStream(m.agentRunner, m.spotifyClient, context.Background(), msg.Text, ch, "", false)
 			return m, tea.Batch(cmd, waitForAgentChunkCmd(ch))
 		}
 		return m, cmd

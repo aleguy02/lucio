@@ -133,6 +133,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 				for _, artist := range t.Artists {
 					artistNames = append(artistNames, artist.Name)
 				}
+				c.setCache(string(t.ID), t.Name)
 				tracks = append(tracks, Track{
 					ID:          string(t.ID),
 					Name:        t.Name,
@@ -160,6 +161,7 @@ func (c *SpotifyClient) SearchSpotifyTool(ctx tool.Context, args SearchSpotifyTo
 				if string(p.ID) == "" {
 					continue
 				}
+				c.setCache(string(p.ID), p.Name)
 				playlists = append(playlists, Playlist{
 					ID:            string(p.ID),
 					Name:          p.Name,

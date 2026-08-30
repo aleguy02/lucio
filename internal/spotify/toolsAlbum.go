@@ -102,6 +102,7 @@ func (c *SpotifyClient) GetAlbumTracksTool(ctx tool.Context, args GetAlbumTracks
 		for _, a := range t.Artists {
 			artistNames = append(artistNames, a.Name)
 		}
+		c.setCache(string(t.ID), t.Name)
 		tracks = append(tracks, Track{
 			ID:          string(t.ID),
 			Name:        t.Name,

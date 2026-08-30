@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	zmb "github.com/zmb3/spotify/v2"
@@ -40,6 +41,22 @@ func init() {
 type SpotifyClient struct {
 	client     *zmb.Client
 	httpClient *http.Client
+	nameCache  sync.Map
+}
+
+func (c *SpotifyClient) setCache(id, name string) {
+	if id == "" || name == "" {
+		return
+	}
+	c.nameCache.Store(id, name)
+}
+
+func (c *SpotifyClient) getCached(id string) (string, bool) {
+	v, ok := c.nameCache.Load(id)
+	if !ok {
+		return "", false
+	}
+	return v.(string), true
 }
 
 func NewSpotifyClient() (*SpotifyClient, error) {

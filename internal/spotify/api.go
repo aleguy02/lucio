@@ -425,6 +425,7 @@ func (c *SpotifyClient) GetAlbumItems(playlistID string) ([]Track, error) {
 		for _, a := range t.Artists {
 			artistNames = append(artistNames, a.Name)
 		}
+		c.setCache(string(t.ID), t.Name)
 		tracks = append(tracks, Track{
 			ID:          string(t.ID),
 			Name:        t.Name,

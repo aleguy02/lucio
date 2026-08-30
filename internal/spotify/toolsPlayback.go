@@ -44,6 +44,7 @@ func (c *SpotifyClient) GetNowPlayingTool(ctx tool.Context, _ struct{}) (GetNowP
 		for _, a := range t.Artists {
 			artistNames = append(artistNames, a.Name)
 		}
+		c.setCache(string(t.ID), t.Name)
 		j.Track = Track{
 			ID:          string(t.ID),
 			Name:        t.Name,
