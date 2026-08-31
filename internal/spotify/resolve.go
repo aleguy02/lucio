@@ -11,8 +11,10 @@ import (
 // prompts. Returns a cached name when available; otherwise fetches and caches it.
 func (c *SpotifyClient) GetPlaylistName(id string) (string, error) {
 	if name, ok := c.getCached(id); ok {
+		logger.Printf("GetPlaylistName: cache hit id=%q name=%q", id, name)
 		return name, nil
 	}
+	logger.Printf("GetPlaylistName: cache miss id=%q", id)
 	pl, err := c.client.GetPlaylist(context.Background(), zmb.ID(id))
 	if err != nil {
 		logger.Printf("GetPlaylistName %q: %v", id, err)
@@ -31,6 +33,7 @@ func (c *SpotifyClient) GetTrackNames(ids []string) ([]string, error) {
 	var missingIDs []zmb.ID
 	for i, id := range ids {
 		if name, ok := c.getCached(id); ok {
+			logger.Printf("GetTrackNames: cache hit id=%q name=%q", id, name)
 			names[i] = name
 			continue
 		}
@@ -40,6 +43,7 @@ func (c *SpotifyClient) GetTrackNames(ids []string) ([]string, error) {
 	if len(missingIDs) == 0 {
 		return names, nil
 	}
+	logger.Printf("GetTrackNames: cache miss ids=%v", missingIDs)
 
 	tracks, err := c.client.GetTracks(context.Background(), missingIDs)
 	if err != nil {

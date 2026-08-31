@@ -114,6 +114,16 @@ func tools(client *sp.SpotifyClient) ([]tool.Tool, error) {
 		return nil, fmt.Errorf("failed to create function tool: %w", err)
 	}
 
+	getLikedTracksTool, err := functiontool.New(
+		functiontool.Config{
+			Name:        "spotifyGetLikedTracks",
+			Description: "Get a list of the user's liked songs (also called saved tracks) on Spotify",
+		}, client.GetLikedTracksTool)
+	if err != nil {
+		logger.Printf("failed to create function tool: %s", err)
+		return nil, fmt.Errorf("failed to create function tool: %w", err)
+	}
+
 	addTracksToPlaylistTool, err := functiontool.New(
 		functiontool.Config{
 			Name:                "spotifyAddTracksToPlaylist",
@@ -158,6 +168,7 @@ func tools(client *sp.SpotifyClient) ([]tool.Tool, error) {
 		getPlaylistTracksTool,
 		getAlbumsTool,
 		getAlbumTracksTool,
+		getLikedTracksTool,
 		addTracksToPlaylistTool,
 		removeTracksFromPlaylistTool,
 		removePlaylistFromLibraryTool,

@@ -89,6 +89,7 @@ func NewSpotifyClient() (*SpotifyClient, error) {
 			spotifyauth.ScopePlaylistModifyPublic,
 			spotifyauth.ScopePlaylistModifyPrivate,
 			spotifyauth.ScopeUserLibraryModify,
+			spotifyauth.ScopeUserLibraryRead,
 			spotifyauth.ScopeUserFollowModify,
 		),
 	)
