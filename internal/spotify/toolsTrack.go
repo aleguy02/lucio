@@ -56,6 +56,7 @@ func (c *SpotifyClient) GetLikedTracksTool(ctx tool.Context, args GetLikedTracks
 			Album:       t.Album.Name,
 			DurationMs:  int(t.Duration),
 			TrackNumber: int(t.TrackNumber),
+			AddedAt:     t.AddedAt,
 		})
 	}
 

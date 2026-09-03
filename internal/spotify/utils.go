@@ -235,6 +235,7 @@ func (c *SpotifyClient) fetchPlaylistItems(ctx context.Context, playlistID strin
 			Album:       t.Album.Name,
 			DurationMs:  int(t.Duration),
 			TrackNumber: int(t.TrackNumber),
+			AddedAt:     item.AddedAt,
 		})
 	}
 	return tracks, int(result.Total), nil

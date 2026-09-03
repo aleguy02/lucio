@@ -25,6 +25,7 @@ type Track struct {
 	Album       string `json:"album"`
 	DurationMs  int    `json:"duration_ms"` // TODO(refactor): let's just use seconds for easier translation to minutes lol
 	TrackNumber int    `json:"track_number"`
+	AddedAt     string `json:"added_at"`
 }
 
 // Playlist is a simplified representation of a Spotify playlist.
